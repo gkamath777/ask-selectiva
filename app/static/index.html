@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask Selectiva — RAG Query</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #161619;
+      --border: #2a2a2e;
+      --text: #e8e6e3;
+      --text-muted: #8b8986;
+      --accent: #f59e0b;
+      --accent-hover: #fbbf24;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .layout {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0;
+      background: linear-gradient(135deg, var(--text) 0%, var(--text-muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .query-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 0.875rem 1rem;
+      font-family: inherit;
+      font-size: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .tenant-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .tenant-row input {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+    }
+
+    button {
+      padding: 0.875rem 1.5rem;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      align-self: flex-start;
+    }
+
+    button:hover {
+      background: var(--accent-hover);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .results {
+      flex: 1;
+      margin-top: 1rem;
+    }
+
+    .results-placeholder {
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      text-align: center;
+      padding: 3rem 1rem;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .result-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .result-answer {
+      font-size: 1rem;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .citations {
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .citations-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .citation {
+      display: block;
+      font-size: 0.875rem;
+      color: var(--accent);
+      text-decoration: none;
+      padding: 0.5rem 0;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .citation:hover {
+      color: var(--accent-hover);
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .citation-title {
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .citation-uri {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 0.125rem;
+    }
+
+    .error-msg {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--error);
+      padding: 1rem;
+      border-radius: 8px;
+      font-size: 0.9375rem;
+      margin-top: 1rem;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      font-size: 0.9375rem;
+      padding: 1rem 0;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .upload-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-bottom: 0.75rem;
+    }
+
+    input[type="file"] {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      width: 100%;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(245, 158, 11, 0.12);
+    }
+
+    .upload-actions {
+      margin-top: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .upload-status {
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .upload-status.ok {
+      color: var(--success);
+    }
+
+    .upload-status.err {
+      color: var(--error);
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <h1>Ask Selectiva</h1>
+      <p class="tagline">Query your knowledge base with local AI</p>
+    </header>
+
+    <form class="query-form" id="queryForm">
+      <div class="input-group">
+        <label for="tenantId">Tenant ID</label>
+        <input
+          type="text"
+          id="tenantId"
+          value="00000000-0000-0000-0000-000000000001"
+          placeholder="00000000-0000-0000-0000-000000000001"
+        >
+      </div>
+
+      <div class="upload-card">
+        <span class="section-label">Upload PDF</span>
+        <div class="input-group">
+          <label for="pdfFile">PDF file</label>
+          <input type="file" id="pdfFile" accept=".pdf,application/pdf">
+        </div>
+        <div class="input-group">
+          <label for="pdfTitle">Title (optional)</label>
+          <input type="text" id="pdfTitle" placeholder="Defaults to file name">
+        </div>
+        <div class="input-group">
+          <label for="pdfSourceId">Source ID (optional)</label>
+          <input type="text" id="pdfSourceId" placeholder="Stable id to replace same doc on re-upload">
+        </div>
+        <div class="upload-actions">
+          <button type="button" class="btn-secondary" id="pdfUploadBtn">Ingest PDF</button>
+        </div>
+        <div class="upload-status" id="uploadStatus"></div>
+      </div>
+
+      <div class="input-group">
+        <label for="question">Question</label>
+        <textarea
+          id="question"
+          placeholder="e.g. How does the ingestion pipeline work?"
+          required
+        ></textarea>
+      </div>
+      <button type="submit" id="submitBtn">Search</button>
+    </form>
+
+    <div class="results" id="results">
+      <div class="results-placeholder" id="placeholder">
+        Enter a question above and click Search to query your knowledge base.
+      </div>
+      <div id="resultsContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('queryForm');
+    const questionInput = document.getElementById('question');
+    const tenantInput = document.getElementById('tenantId');
+    const submitBtn = document.getElementById('submitBtn');
+    const placeholder = document.getElementById('placeholder');
+    const resultsContent = document.getElementById('resultsContent');
+    const pdfFile = document.getElementById('pdfFile');
+    const pdfTitle = document.getElementById('pdfTitle');
+    const pdfSourceId = document.getElementById('pdfSourceId');
+    const pdfUploadBtn = document.getElementById('pdfUploadBtn');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    /**
+     * Resolve API URL. Uses URL() + explicit origin so Safari accepts the string (avoids
+     * "The string did not match the expected pattern"). Prefer 127.0.0.1 fallback for file://.
+     */
+    function apiUrl(path) {
+      const p = path.startsWith('/') ? path : '/' + path;
+      const fallbackOrigin = 'http://127.0.0.1:8000';
+      if (window.location.protocol === 'file:') {
+        return fallbackOrigin + p;
+      }
+      try {
+        const origin =
+          window.location.origin && window.location.origin !== 'null'
+            ? window.location.origin
+            : fallbackOrigin;
+        const base = origin.endsWith('/') ? origin : origin + '/';
+        return new URL(p, base).href;
+      } catch (_) {
+        return fallbackOrigin + p;
+      }
+    }
+
+    function getApiDisplayBase() {
+      try {
+        return new URL(apiUrl('/')).origin;
+      } catch (_) {
+        return 'http://127.0.0.1:8000';
+      }
+    }
+
+    async function readApiResponse(res) {
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (_) {
+          data = null;
+        }
+      }
+      return { ok: res.ok, status: res.status, data, text };
+    }
+
+    function errorMessageFromRead({ data, text, status }) {
+      if (data && data.detail !== undefined && data.detail !== null) {
+        return parseApiError(data);
+      }
+      const t = (text || '').trim().replace(/\s+/g, ' ');
+      if (t.length > 280) return t.slice(0, 280) + '…';
+      if (t) return t;
+      return 'Request failed (HTTP ' + status + ')';
+    }
+
+    function setLoading(loading) {
+      submitBtn.disabled = loading;
+      if (loading) {
+        placeholder.innerHTML = '<div class="loading"><div class="spinner"></div>Searching...</div>';
+        resultsContent.innerHTML = '';
+      }
+    }
+
+    function showError(msg) {
+      placeholder.innerHTML = '';
+      resultsContent.innerHTML = '';
+      const el = document.createElement('div');
+      el.className = 'error-msg';
+      el.textContent = msg;
+      resultsContent.appendChild(el);
+    }
+
+    function showResults(data) {
+      placeholder.innerHTML = '';
+
+      const meta = document.createElement('div');
+      meta.className = 'result-meta';
+      meta.textContent = `Model: ${data.model_used}`;
+
+      const answer = document.createElement('div');
+      answer.className = 'result-answer';
+      answer.textContent = data.answer;
+
+      let citationsHtml = '';
+      if (data.citations && data.citations.length > 0) {
+        citationsHtml = `
+          <div class="citations">
+            <div class="citations-title">Sources</div>
+            ${data.citations.map(c => `
+              <a href="${c.uri || '#'}" target="_blank" rel="noopener" class="citation">
+                <span class="citation-title">${c.title || 'Untitled'}</span>
+                ${c.uri ? `<div class="citation-uri">${c.uri}</div>` : ''}
+              </a>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.innerHTML = `
+        <div class="result-meta">Model: ${data.model_used}</div>
+        <div class="result-answer">${escapeHtml(data.answer)}</div>
+        ${citationsHtml}
+      `;
+
+      resultsContent.innerHTML = '';
+      resultsContent.appendChild(card);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML.replace(/\n/g, '<br>');
+    }
+
+    function parseApiError(data) {
+      if (!data.detail) return 'Request failed';
+      return Array.isArray(data.detail)
+        ? data.detail.map(d => d.msg || JSON.stringify(d)).join('; ')
+        : typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    }
+
+    pdfUploadBtn.addEventListener('click', async () => {
+      uploadStatus.className = 'upload-status';
+      uploadStatus.textContent = '';
+
+      const f = pdfFile.files && pdfFile.files[0];
+      if (!f) {
+        uploadStatus.className = 'upload-status err';
+        uploadStatus.textContent = 'Choose a PDF file first.';
+        return;
+      }
+
+      const tenantId = tenantInput.value.trim();
+      if (!tenantId) {
+        uploadStatus.className = 'upload-status err';
+        uploadStatus.textContent = 'Enter a tenant ID above.';
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('tenant_id', tenantId);
+      fd.append('file', f);
+      const t = pdfTitle.value.trim();
+      if (t) fd.append('title', t);
+      const sid = pdfSourceId.value.trim();
+      if (sid) fd.append('source_id', sid);
+
+      pdfUploadBtn.disabled = true;
+      uploadStatus.textContent = 'Uploading and extracting text…';
+
+      try {
+        const res = await fetch(apiUrl('/upload/pdf'), {
+          method: 'POST',
+          body: fd,
+        });
+        const parsed = await readApiResponse(res);
+
+        if (!parsed.ok) {
+          uploadStatus.className = 'upload-status err';
+          uploadStatus.textContent = errorMessageFromRead(parsed);
+          return;
+        }
+
+        const data = parsed.data;
+        if (!data) {
+          uploadStatus.className = 'upload-status err';
+          uploadStatus.textContent = errorMessageFromRead(parsed);
+          return;
+        }
+
+        uploadStatus.className = 'upload-status ok';
+        uploadStatus.textContent =
+          `Queued (${data.chars_extracted != null ? data.chars_extracted + ' chars extracted. ' : ''}Document ${data.document_id}). Wait a few seconds, then search.`;
+      } catch (err) {
+        uploadStatus.className = 'upload-status err';
+        uploadStatus.textContent =
+          `Network error: ${err.message}. Is the API running at ${getApiDisplayBase()}?`;
+      } finally {
+        pdfUploadBtn.disabled = false;
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const question = questionInput.value.trim();
+      const tenantId = tenantInput.value.trim();
+
+      if (!question) return;
+
+      setLoading(true);
+
+      try {
+        const res = await fetch(apiUrl('/query'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tenant_id: tenantId, question }),
+        });
+
+        const parsed = await readApiResponse(res);
+
+        if (!parsed.ok) {
+          showError(errorMessageFromRead(parsed));
+          return;
+        }
+
+        const data = parsed.data;
+        if (!data) {
+          showError(errorMessageFromRead(parsed));
+          return;
+        }
+
+        showResults(data);
+      } catch (err) {
+        showError(
+          `Network error: ${err.message}. Is the API running at ${getApiDisplayBase()}?`,
+        );
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>

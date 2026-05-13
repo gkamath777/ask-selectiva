@@ -1,0 +1,38 @@
+# FastAPI & server
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# Database
+asyncpg==0.30.0
+sqlalchemy[asyncio]==2.0.36
+alembic==1.14.0
+
+# pgvector
+pgvector==0.3.6
+
+# Kafka
+aiokafka==0.11.0
+
+# Embeddings (local)
+sentence-transformers==3.3.1
+torch==2.5.1
+numpy>=1.24.0
+
+# HTTP client
+httpx==0.28.1
+
+# Config & validation
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Utils
+python-multipart==0.0.18
+python-dotenv==1.0.1
+structlog==24.4.0
+
+# PDF text extraction
+pypdf==5.1.0
+
+# Google Drive API (push + file download)
+google-api-python-client==2.154.0
+google-auth==2.36.0
