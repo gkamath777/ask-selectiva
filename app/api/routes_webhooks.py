@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
