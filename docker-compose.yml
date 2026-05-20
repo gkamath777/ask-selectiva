@@ -59,6 +59,14 @@ services:
       OLLAMA_MODEL: llama3.1:8b
       OLLAMA_ESCALATION_MODEL: llama3.1:8b
       OLLAMA_REQUEST_TIMEOUT_SECONDS: "600"
+      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID:-}
+      GOOGLE_DRIVE_TENANT_ID: ${GOOGLE_DRIVE_TENANT_ID:-}
+      GOOGLE_SERVICE_ACCOUNT_FILE: ${GOOGLE_SERVICE_ACCOUNT_FILE:-}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
+      GOOGLE_DRIVE_PUBLIC_BASE_URL: ${GOOGLE_DRIVE_PUBLIC_BASE_URL:-}
+      GOOGLE_DRIVE_WEBHOOK_TOKEN: ${GOOGLE_DRIVE_WEBHOOK_TOKEN:-}
+    volumes:
+      - ./secrets:/app/secrets:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -73,6 +81,14 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://selectiva:selectiva_dev@postgres:5432/ask_selectiva
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID:-}
+      GOOGLE_DRIVE_TENANT_ID: ${GOOGLE_DRIVE_TENANT_ID:-}
+      GOOGLE_SERVICE_ACCOUNT_FILE: ${GOOGLE_SERVICE_ACCOUNT_FILE:-}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
+      GOOGLE_DRIVE_PUBLIC_BASE_URL: ${GOOGLE_DRIVE_PUBLIC_BASE_URL:-}
+      GOOGLE_DRIVE_WEBHOOK_TOKEN: ${GOOGLE_DRIVE_WEBHOOK_TOKEN:-}
+    volumes:
+      - ./secrets:/app/secrets:ro
     restart: unless-stopped
 
 volumes:
