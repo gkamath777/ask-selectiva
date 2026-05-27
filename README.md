@@ -117,6 +117,8 @@ PDFs must contain **extractable text**; scanned pages need OCR elsewhere first. 
 
 Google [Drive push notifications](https://developers.google.com/drive/api/guides/push) call your FastAPI URL when files change under a watched **folder**. The service downloads new or updated **PDFs**, extracts text, and queues them through the same Kafka ingest pipeline as manual uploads.
 
+For step-by-step local-machine setup, including service account creation, folder sharing, ngrok, webhook registration, and troubleshooting, see [GOOGLE_DRIVE_WEBHOOK_SETUP.md](./GOOGLE_DRIVE_WEBHOOK_SETUP.md).
+
 ### One-time setup
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project and **enable the Google Drive API**.
