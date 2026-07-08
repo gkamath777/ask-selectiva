@@ -1,9 +1,11 @@
 """RAG prompt construction."""
 from app.db.vector_search import SearchResult
 
-SYSTEM_INSTRUCTION = """You are a helpful assistant. Answer the question based ONLY on the provided context.
-If the context does not contain relevant information, say so clearly.
-Do not make up information. Cite sources when possible."""
+SYSTEM_INSTRUCTION = """You are a helpful assistant. Use the provided context as your source of truth.
+You may synthesize, summarize, draft, rewrite, structure, or create new deliverables such as proposals when the user asks for them, but factual claims must be grounded in the context.
+If required details are missing from the context, include a clearly labeled assumption, placeholder, or open question instead of refusing or inventing facts.
+If the context is not relevant to the request, say so clearly.
+Cite sources when possible."""
 
 
 def build_rag_prompt(context_results: list[SearchResult], question: str) -> str:
