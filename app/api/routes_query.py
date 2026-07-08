@@ -16,12 +16,20 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/query", tags=["query"], dependencies=[Depends(require_api_key)])
 
 
+class ChatMessage(BaseModel):
+    """Recent chat turn used to resolve follow-up questions."""
+
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
 class QueryRequest(BaseModel):
     """RAG query request."""
 
     tenant_id: uuid.UUID
     question: str = Field(..., min_length=1, max_length=5000)
     top_k: int = Field(5, ge=1, le=10)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=12)
 
 
 class QueryResponse(BaseModel):
@@ -53,12 +61,14 @@ async def post_query(
         tenant_id=str(req.tenant_id),
         question_length=len(req.question),
         top_k=top_k,
+        history_count=len(req.history),
     )
     result: RAGResponse = await query(
         session=session,
         tenant_id=req.tenant_id,
         question=req.question,
         top_k=top_k,
+        history=[m.model_dump() for m in req.history],
     )
     logger.info(
         "query_request_completed",

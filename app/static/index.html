@@ -187,8 +187,30 @@
     .doc-item { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
     .doc-title { font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
     .doc-meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .chat-history-list { display: grid; gap: 8px; }
+    .chat-history-item {
+      width: 100%;
+      min-height: auto;
+      display: grid;
+      gap: 3px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: inherit;
+      text-align: left;
+      font-weight: 500;
+    }
+    .chat-history-item:hover { border-color: var(--brand); background: var(--brand-soft); }
+    .chat-history-item.active { border-color: var(--brand); background: var(--panel-tint); }
+    .chat-history-title { font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+    .chat-history-meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 
     .query-panel { max-width: 980px; margin: 0 auto; display: grid; gap: 16px; }
+    .query-panel .ask-box { order: 1; }
+    .query-panel .answer-panel { order: 2; }
+    .query-panel.has-chat .answer-panel { order: 1; }
+    .query-panel.has-chat .ask-box { order: 2; }
     .ask-box { padding: 18px; box-shadow: var(--shadow); }
     .accent-pill {
       color: var(--brand-dark);
@@ -224,6 +246,15 @@
     .answer-label { font-size: 12px; font-weight: 800; color: var(--muted); }
     .answer-meta { font-size: 12px; color: var(--muted); font-family: "JetBrains Mono", ui-monospace, monospace; }
     .answer-text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .chat-thread { display: grid; gap: 14px; padding: 16px; }
+    .chat-message { display: flex; }
+    .chat-message.user { justify-content: flex-end; }
+    .chat-message.assistant { justify-content: flex-start; }
+    .chat-bubble { max-width: min(760px, 92%); padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow-wrap: anywhere; }
+    .chat-message.user .chat-bubble { background: var(--brand-soft); border-color: #c8ddf7; }
+    .chat-message.assistant .chat-bubble { background: var(--panel-soft); }
+    .chat-meta { margin-bottom: 7px; font-size: 12px; font-weight: 800; color: var(--muted); font-family: "JetBrains Mono", ui-monospace, monospace; }
+    .chat-text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
     .sources { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
     .sources-grid { display: grid; gap: 10px; margin-top: 10px; }
 
@@ -248,6 +279,7 @@
       .main { padding: 16px; }
       .query-controls { grid-template-columns: 1fr; }
       .ask-header { flex-direction: column; }
+      .chat-bubble { max-width: 100%; }
     }
   </style>
 </head>
@@ -288,6 +320,21 @@
             <div class="button-row">
               <button type="button" class="btn-secondary" id="saveSettingsBtn">Save</button>
               <button type="button" class="btn-ghost" id="clearSettingsBtn">Clear</button>
+            </div>
+          </section>
+
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">Chat History</h2>
+                <p class="section-note">Saved chats for this tenant</p>
+              </div>
+            </div>
+            <div class="chat-history-list" id="chatHistoryList">
+              <button type="button" class="chat-history-item active">
+                <span class="chat-history-title">New chat</span>
+                <span class="chat-history-meta">No messages yet</span>
+              </button>
             </div>
           </section>
 
@@ -357,7 +404,7 @@
       </aside>
 
       <main class="main">
-        <div class="query-panel">
+        <div class="query-panel" id="queryPanel">
           <section class="panel ask-box">
             <div class="ask-header">
               <div>
@@ -381,7 +428,10 @@
                   </select>
                 </div>
                 <div></div>
-                <button type="submit" class="btn-primary" id="submitBtn">Search</button>
+                <div class="button-row">
+                  <button type="submit" class="btn-primary" id="submitBtn">Ask</button>
+                  <button type="button" class="btn-secondary" id="newChatBtn">New chat</button>
+                </div>
               </div>
             </form>
           </section>
@@ -401,11 +451,13 @@
 
   <script>
     const form = document.getElementById('queryForm');
+    const queryPanel = document.getElementById('queryPanel');
     const questionInput = document.getElementById('question');
     const tenantInput = document.getElementById('tenantId');
     const apiKeyInput = document.getElementById('apiKey');
     const topKInput = document.getElementById('topK');
     const submitBtn = document.getElementById('submitBtn');
+    const newChatBtn = document.getElementById('newChatBtn');
     const answerPanel = document.getElementById('answerPanel');
     const pdfFile = document.getElementById('pdfFile');
     const pdfTitle = document.getElementById('pdfTitle');
@@ -413,14 +465,24 @@
     const pdfUploadBtn = document.getElementById('pdfUploadBtn');
     const uploadStatus = document.getElementById('uploadStatus');
     const recentDocs = document.getElementById('recentDocs');
+    const chatHistoryList = document.getElementById('chatHistoryList');
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
     const clearSettingsBtn = document.getElementById('clearSettingsBtn');
     const refreshHealthBtn = document.getElementById('refreshHealthBtn');
 
     const state = { documents: [], pollTimers: new Map() };
+    const maxContextTurns = 12;
+    const maxSavedChats = 30;
+    let chatSessions = [];
+    let activeChatId = '';
+    let chatMessages = [];
 
     initSettings();
+    loadChatSessions();
+    ensureActiveChat();
     renderRecentDocs();
+    renderChatHistory();
+    renderChat();
     refreshHealth();
 
     function apiUrl(path) {
@@ -451,6 +513,10 @@
       localStorage.setItem('ask-selectiva.tenantId', tenantInput.value.trim());
       localStorage.setItem('ask-selectiva.apiKey', apiKeyInput.value.trim());
       setUploadStatus('Settings saved.', 'ok');
+      loadChatSessions();
+      ensureActiveChat();
+      renderChatHistory();
+      renderChat();
       refreshHealth();
     });
 
@@ -463,6 +529,19 @@
     });
 
     refreshHealthBtn.addEventListener('click', refreshHealth);
+    newChatBtn.addEventListener('click', startNewChat);
+    chatHistoryList.addEventListener('click', (event) => {
+      const item = event.target.closest('[data-chat-id]');
+      if (!item) return;
+      selectChat(item.dataset.chatId);
+    });
+
+    tenantInput.addEventListener('change', () => {
+      loadChatSessions();
+      ensureActiveChat();
+      renderChatHistory();
+      renderChat();
+    });
 
     async function readApiResponse(res) {
       const text = await res.text();
@@ -484,6 +563,227 @@
       const compact = (text || '').trim().replace(/\s+/g, ' ');
       if (compact) return compact.length > 260 ? compact.slice(0, 260) + '...' : compact;
       return 'Request failed (HTTP ' + status + ')';
+    }
+
+    function isChatMessage(item) {
+      return item &&
+        (item.role === 'user' || item.role === 'assistant') &&
+        typeof item.content === 'string' &&
+        item.content.trim();
+    }
+
+    function chatSessionsStorageKey() {
+      return 'ask-selectiva.chats.' + (tenantInput.value.trim() || 'default');
+    }
+
+    function activeChatStorageKey() {
+      return 'ask-selectiva.activeChat.' + (tenantInput.value.trim() || 'default');
+    }
+
+    function newChatId() {
+      return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function createChatSession(messages = []) {
+      const now = new Date().toISOString();
+      return {
+        id: newChatId(),
+        title: titleFromMessages(messages),
+        createdAt: now,
+        updatedAt: now,
+        messages: messages.filter(isChatMessage),
+      };
+    }
+
+    function titleFromMessages(messages) {
+      const firstUser = messages.find(m => m.role === 'user' && m.content.trim());
+      if (!firstUser) return 'New chat';
+      return firstUser.content.trim().replace(/\s+/g, ' ').slice(0, 54);
+    }
+
+    function loadChatSessions() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(chatSessionsStorageKey()) || '[]');
+        chatSessions = Array.isArray(parsed)
+          ? parsed
+              .filter(session => session && session.id)
+              .map(session => ({
+                id: String(session.id),
+                title: session.title || titleFromMessages(session.messages || []),
+                createdAt: session.createdAt || new Date().toISOString(),
+                updatedAt: session.updatedAt || session.createdAt || new Date().toISOString(),
+                messages: Array.isArray(session.messages) ? session.messages.filter(isChatMessage) : [],
+              }))
+          : [];
+      } catch (_) {
+        chatSessions = [];
+      }
+
+      if (!chatSessions.length) {
+        try {
+          const legacy = JSON.parse(sessionStorage.getItem('ask-selectiva.chat.' + (tenantInput.value.trim() || 'default')) || '[]');
+          if (Array.isArray(legacy) && legacy.some(isChatMessage)) {
+            chatSessions = [createChatSession(legacy)];
+          }
+        } catch (_) {
+          // Ignore old one-chat storage if it cannot be parsed.
+        }
+      }
+
+      activeChatId = localStorage.getItem(activeChatStorageKey()) || '';
+    }
+
+    function saveChatSessions() {
+      try {
+        pruneEmptyChatSessions();
+        localStorage.setItem(chatSessionsStorageKey(), JSON.stringify(chatSessions.slice(0, maxSavedChats)));
+        localStorage.setItem(activeChatStorageKey(), activeChatId);
+      } catch (_) {
+        // Chat history is useful, but querying still works when storage is unavailable.
+      }
+    }
+
+    function activeChat() {
+      return chatSessions.find(session => session.id === activeChatId) || null;
+    }
+
+    function isEmptyChatSession(session) {
+      return !session || !Array.isArray(session.messages) || !session.messages.some(isChatMessage);
+    }
+
+    function pruneEmptyChatSessions() {
+      let keptEmpty = false;
+      chatSessions = chatSessions.filter(session => {
+        if (!isEmptyChatSession(session)) return true;
+        if (session.id === activeChatId) {
+          keptEmpty = true;
+          return true;
+        }
+        if (!keptEmpty) {
+          keptEmpty = true;
+          return true;
+        }
+        return false;
+      });
+    }
+
+    function ensureActiveChat() {
+      if (!chatSessions.length) {
+        const session = createChatSession();
+        chatSessions.unshift(session);
+        activeChatId = session.id;
+      }
+      if (!activeChat()) activeChatId = chatSessions[0].id;
+      chatMessages = activeChat()?.messages || [];
+      saveChatSessions();
+    }
+
+    function syncActiveChat() {
+      let session = activeChat();
+      if (!session) {
+        session = createChatSession();
+        chatSessions.unshift(session);
+        activeChatId = session.id;
+      }
+      session.messages = chatMessages.filter(isChatMessage);
+      session.title = titleFromMessages(session.messages);
+      session.updatedAt = new Date().toISOString();
+      chatSessions = [session, ...chatSessions.filter(item => item.id !== session.id)].slice(0, maxSavedChats);
+      saveChatSessions();
+      renderChatHistory();
+    }
+
+    function startNewChat() {
+      if (!chatMessages.length) {
+        syncActiveChat();
+        renderChat();
+        questionInput.focus();
+        return;
+      }
+
+      syncActiveChat();
+      const emptySession = chatSessions.find(session => session.id !== activeChatId && isEmptyChatSession(session));
+      if (emptySession) {
+        activeChatId = emptySession.id;
+        chatMessages = [];
+        chatSessions = [emptySession, ...chatSessions.filter(item => item.id !== emptySession.id)];
+        saveChatSessions();
+        renderChatHistory();
+        renderChat();
+        questionInput.focus();
+        return;
+      }
+
+      const session = createChatSession();
+      chatSessions.unshift(session);
+      activeChatId = session.id;
+      chatMessages = [];
+      saveChatSessions();
+      renderChatHistory();
+      renderChat();
+      questionInput.focus();
+    }
+
+    function selectChat(chatId) {
+      syncActiveChat();
+      const session = chatSessions.find(item => item.id === chatId);
+      if (!session) return;
+      activeChatId = session.id;
+      chatMessages = session.messages || [];
+      saveChatSessions();
+      renderChatHistory();
+      renderChat();
+    }
+
+    function renderChatHistory() {
+      if (!chatSessions.length) {
+        chatHistoryList.innerHTML = '';
+        return;
+      }
+      chatHistoryList.innerHTML = chatSessions.map(session => `
+        <button type="button" class="chat-history-item${session.id === activeChatId ? ' active' : ''}" data-chat-id="${escapeAttr(session.id)}">
+          <span class="chat-history-title">${escapeHtml(session.title || 'New chat')}</span>
+          <span class="chat-history-meta">${escapeHtml(chatSummary(session))}</span>
+        </button>
+      `).join('');
+    }
+
+    function chatSummary(session) {
+      const count = Array.isArray(session.messages) ? session.messages.length : 0;
+      if (!count) return 'No messages yet';
+      const when = session.updatedAt ? new Date(session.updatedAt) : null;
+      const time = when && !Number.isNaN(when.getTime())
+        ? when.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : 'Saved';
+      return `${count} message${count === 1 ? '' : 's'} · ${time}`;
+    }
+
+    function getHistoryForRequest() {
+      return chatMessages
+        .filter(isChatMessage)
+        .slice(-maxContextTurns)
+        .map(({ role, content }) => ({ role, content }));
+    }
+
+    function buildQuestionForApi(question, history) {
+      if (!history.length) return question;
+      const recent = history.slice(-6).map(item => {
+        const label = item.role === 'assistant' ? 'Assistant' : 'User';
+        const content = String(item.content || '').trim();
+        const clipped = content.length > 900 ? content.slice(0, 900).trimEnd() + '...' : content;
+        return `${label}: ${clipped}`;
+      }).join('\n\n');
+      const contextualQuestion = [
+        'Use this recent conversation to understand the follow-up question.',
+        '',
+        recent,
+        '',
+        'Follow-up question:',
+        question,
+      ].join('\n');
+      return contextualQuestion.length > 5000
+        ? contextualQuestion.slice(contextualQuestion.length - 5000)
+        : contextualQuestion;
     }
 
     function setDot(id, stateName) {
@@ -623,13 +923,23 @@
       if (!question) return;
       if (!tenantId) return showError('Tenant ID is required.');
 
+      const history = getHistoryForRequest();
+      const questionForApi = buildQuestionForApi(question, history);
+      chatMessages.push({ role: 'user', content: question });
+      syncActiveChat();
+      questionInput.value = '';
       submitBtn.disabled = true;
       showLoading();
       try {
         const res = await fetch(apiUrl('/query'), {
           method: 'POST',
           headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ tenant_id: tenantId, question, top_k: Number(topKInput.value || 5) }),
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            question: questionForApi,
+            top_k: Number(topKInput.value || 5),
+            history,
+          }),
         });
         const parsed = await readApiResponse(res);
         if (!parsed.ok || !parsed.data) throw new Error(errorMessageFromRead(parsed));
@@ -642,34 +952,95 @@
     });
 
     function showLoading() {
-      answerPanel.innerHTML = '<div class="answer-state"><div><div class="spinner"></div><div class="section-title">Searching retrieved context</div><p class="section-note">Embedding the question, searching vectors, and generating an answer.</p></div></div>';
+      renderChat({ loading: true });
     }
 
     function showError(message) {
-      answerPanel.innerHTML = '<div class="answer-state"><div class="error-box">' + escapeHtml(message) + '</div></div>';
+      renderChat({ error: message });
     }
 
     function showAnswer(data) {
-      const citations = Array.isArray(data.citations) ? data.citations : [];
-      const sources = citations.length ? `
+      chatMessages.push({
+        role: 'assistant',
+        content: data.answer || '',
+        model_used: data.model_used,
+        citations: Array.isArray(data.citations) ? data.citations : [],
+      });
+      syncActiveChat();
+      renderChat();
+    }
+
+    function renderChat({ loading = false, error = '' } = {}) {
+      queryPanel.classList.toggle('has-chat', Boolean(chatMessages.length || loading || error));
+      if (!chatMessages.length && !loading && !error) {
+        answerPanel.innerHTML = `
+          <div class="answer-state">
+            <div>
+              <div class="section-title">Ready for a question</div>
+              <p class="section-note">Ask a question, then follow up naturally. This chat keeps recent context for the current browser session.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const messages = chatMessages.map(messageHtml).join('');
+      const loadingHtml = loading ? `
+        <div class="chat-message assistant">
+          <div class="chat-bubble">
+            <div class="spinner"></div>
+            <div class="section-title">Thinking with recent context</div>
+            <p class="section-note">Embedding the follow-up, searching vectors, and generating an answer.</p>
+          </div>
+        </div>
+      ` : '';
+      const errorHtml = error ? '<div class="error-box">' + escapeHtml(error) + '</div>' : '';
+      answerPanel.innerHTML = '<div class="chat-thread">' + messages + loadingHtml + errorHtml + '</div>';
+      answerPanel.lastElementChild?.lastElementChild?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+
+    function messageHtml(message) {
+      const isAssistant = message.role === 'assistant';
+      const citations = dedupeCitations(Array.isArray(message.citations) ? message.citations : []);
+      const sources = isAssistant && citations.length ? `
         <div class="sources">
           <div class="answer-label">Sources</div>
           <div class="sources-grid">${citations.map(c => sourceHtml(c)).join('')}</div>
         </div>
       ` : '';
-      answerPanel.innerHTML = `
-        <div class="answer-card">
-          <div class="answer-top">
-            <div>
-              <div class="answer-label">Answer</div>
-              <div class="section-note">${citations.length} citation${citations.length === 1 ? '' : 's'} returned</div>
-            </div>
-            <div class="answer-meta">${escapeHtml(data.model_used || 'unknown model')}</div>
+      const meta = isAssistant
+        ? 'Ask Selectiva' + (message.model_used ? ' · ' + escapeHtml(message.model_used) : '')
+        : 'You';
+      return `
+        <div class="chat-message ${escapeAttr(message.role)}">
+          <div class="chat-bubble">
+            <div class="chat-meta">${meta}</div>
+            <div class="chat-text">${escapeHtml(message.content || '')}</div>
+            ${sources}
           </div>
-          <div class="answer-text">${escapeHtml(data.answer || '')}</div>
-          ${sources}
         </div>
       `;
+    }
+
+    function dedupeCitations(citations) {
+      const unique = [];
+      const seen = new Set();
+      for (const citation of citations) {
+        const key = citationKey(citation);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(citation);
+        if (unique.length >= 2) break;
+      }
+      return unique;
+    }
+
+    function citationKey(citation) {
+      for (const value of [citation.title, citation.uri, citation.source_id]) {
+        const cleaned = String(value || '').trim().replace(/\/+$/, '').split('/').pop().split('?')[0].toLowerCase();
+        if (cleaned) return cleaned;
+      }
+      return String((citation.source_type || '') + ':' + (citation.source_id || '')).toLowerCase();
     }
 
     function sourceHtml(citation) {
