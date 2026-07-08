@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import time
 import uuid
 from typing import Any, Optional
 
@@ -58,22 +59,46 @@ async def webhook_ingest(
     3. Publish to Kafka
     4. Return immediately
     """
+    start = time.perf_counter()
     body = await request.body()
     settings = get_settings()
+    if len(body) > settings.max_webhook_body_bytes:
+        logger.warning(
+            "webhook_ingest_rejected_too_large",
+            body_bytes=len(body),
+            limit=settings.max_webhook_body_bytes,
+        )
+        raise HTTPException(status_code=413, detail="Webhook payload too large")
+    logger.info(
+        "webhook_ingest_received",
+        body_bytes=len(body),
+        signature_required=bool(settings.webhook_secret),
+    )
 
     if settings.webhook_secret:
         sig = x_signature or x_hmac_sha256
         if not sig:
+            logger.warning("webhook_ingest_rejected_missing_signature")
             raise HTTPException(status_code=401, detail="Missing signature header")
         if not _verify_hmac(body, sig, settings.webhook_secret):
+            logger.warning("webhook_ingest_rejected_invalid_signature")
             raise HTTPException(status_code=401, detail="Invalid signature")
 
     try:
         data = json.loads(body)
     except json.JSONDecodeError as e:
+        logger.warning("webhook_ingest_rejected_invalid_json", error=str(e))
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
 
     payload = WebhookPayload(**data)
+    logger.info(
+        "webhook_ingest_validated",
+        tenant_id=str(payload.tenant_id),
+        source_type=payload.source_type,
+        source_id=payload.source_id,
+        has_content=bool(payload.content or payload.body or payload.text),
+        metadata_keys=sorted((payload.metadata or {}).keys()),
+    )
     content_hash = _compute_content_hash(body)
 
     # Build payload for consumer (mode="json" converts UUIDs to str for Kafka)
@@ -106,6 +131,8 @@ async def webhook_ingest(
         document_id=str(doc.id),
         tenant_id=str(payload.tenant_id),
         source_type=payload.source_type,
+        source_id=payload.source_id,
+        duration_ms=round((time.perf_counter() - start) * 1000, 2),
     )
 
     return {

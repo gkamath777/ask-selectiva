@@ -2,6 +2,7 @@
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,8 +11,14 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # Runtime
+    app_environment: str = "development"
+    create_db_on_startup: bool = True
+
     # Database
     database_url: str = "postgresql+asyncpg://selectiva:selectiva_dev@localhost:5432/ask_selectiva"
+    db_pool_size: int = 20
+    db_max_overflow: int = 10
 
     # Kafka
     kafka_bootstrap_servers: str = "localhost:9092"
@@ -32,6 +39,14 @@ class Settings(BaseSettings):
     # Embeddings
     embedding_model: str = "all-MiniLM-L6-v2"
 
+    # API security
+    # When set, protected endpoints require X-API-Key: <value>.
+    api_key: Optional[str] = None
+    cors_allowed_origins: str = "*"
+    max_request_body_bytes: int = 10 * 1024 * 1024
+    max_webhook_body_bytes: int = 5 * 1024 * 1024
+    max_query_top_k: int = 10
+
     # Webhook
     webhook_secret: Optional[str] = None
 
@@ -48,6 +63,37 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+
+    @property
+    def is_production(self) -> bool:
+        """Whether production safety checks should be enforced."""
+        return self.app_environment.lower() in {"prod", "production"}
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parsed CORS origins from the comma-separated env var."""
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        """Fail fast on unsafe production configuration."""
+        if not self.is_production:
+            return self
+
+        errors = []
+        if not self.api_key:
+            errors.append("API_KEY must be set in production")
+        if not self.webhook_secret:
+            errors.append("WEBHOOK_SECRET must be set in production")
+        if "*" in self.cors_origin_list:
+            errors.append("CORS_ALLOWED_ORIGINS cannot contain '*' in production")
+        if "selectiva_dev" in self.database_url:
+            errors.append("DATABASE_URL must not use the default development password in production")
+        if self.create_db_on_startup:
+            errors.append("CREATE_DB_ON_STARTUP must be false in production; run migrations explicitly")
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
 
 @lru_cache

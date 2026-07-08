@@ -19,7 +19,7 @@ from app.api.routes_upload import router as upload_router
 from app.api.routes_webhooks import router as webhooks_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
-from app.core.middleware import RequestLoggingMiddleware
+from app.core.middleware import RequestLoggingMiddleware, RequestSizeLimitMiddleware, SecurityHeadersMiddleware
 from app.db.session import init_db
 from app.kafka.producer import shutdown_producer
 
@@ -33,18 +33,21 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
 
     # Startup
+    logger.info("application_starting", log_level=settings.log_level)
     await init_db()
     logger.info("application_started")
 
     yield
 
     # Shutdown
+    logger.info("application_stopping")
     await shutdown_producer()
     logger.info("application_stopped")
 
 
 def create_app() -> FastAPI:
     """Create FastAPI application."""
+    settings = get_settings()
     app = FastAPI(
         title="Ask Selectiva",
         description="Local AI Knowledge Ingestion & RAG Platform",
@@ -53,10 +56,12 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(RequestSizeLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials="*" not in settings.cors_origin_list,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -67,14 +72,32 @@ def create_app() -> FastAPI:
     app.include_router(query_router)
     app.include_router(admin_router)
     app.include_router(google_drive_admin_router)
+    logger.info("application_routes_registered")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception(request: Request, exc: StarletteHTTPException):
+        """Log expected HTTP errors with request context before default handling."""
+        logger.warning(
+            "http_exception",
+            path=str(request.url.path),
+            status_code=exc.status_code,
+            detail=str(exc.detail),
+        )
+        return await http_exception_handler(request, exc)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception(request: Request, exc: RequestValidationError):
+        """Log validation errors without dumping request bodies."""
+        logger.warning(
+            "request_validation_failed",
+            path=str(request.url.path),
+            error_count=len(exc.errors()),
+        )
+        return await request_validation_exception_handler(request, exc)
 
     @app.exception_handler(Exception)
     async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
         """Return JSON on unexpected errors so the web UI can parse responses."""
-        if isinstance(exc, StarletteHTTPException):
-            return await http_exception_handler(request, exc)
-        if isinstance(exc, RequestValidationError):
-            return await request_validation_exception_handler(request, exc)
         logger.exception("unhandled_exception", path=str(request.url.path), error=str(exc))
         return JSONResponse(
             status_code=500,
@@ -96,6 +119,9 @@ def create_app() -> FastAPI:
 
     if static_dir.is_dir():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        logger.info("static_assets_mounted", static_dir=str(static_dir))
+    else:
+        logger.warning("static_assets_missing", static_dir=str(static_dir))
 
     return app
 

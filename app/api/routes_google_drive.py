@@ -1,11 +1,13 @@
 """Google Drive push notifications and admin watch/sync."""
 import asyncio
+import time
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.security import require_api_key
 from app.db import crud
 from app.db.session import DbSession, async_session_factory
 from app.integrations.google_drive import (
@@ -21,14 +23,24 @@ from app.integrations.google_drive import (
 logger = get_logger(__name__)
 
 webhook_router = APIRouter(prefix="/webhooks", tags=["google-drive"])
-admin_router = APIRouter(prefix="/admin/google-drive", tags=["google-drive"])
+admin_router = APIRouter(
+    prefix="/admin/google-drive",
+    tags=["google-drive"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 async def _run_drive_sync_safe() -> None:
     async with async_session_factory() as session:
+        start = time.perf_counter()
+        logger.info("google_drive_background_sync_started")
         try:
             summary = await sync_folder_pdfs_to_pipeline(session)
-            logger.info("google_drive_sync_finished", **summary)
+            logger.info(
+                "google_drive_sync_finished",
+                duration_ms=round((time.perf_counter() - start) * 1000, 2),
+                **summary,
+            )
         except Exception:
             await session.rollback()
             logger.exception("google_drive_sync_failed")
@@ -45,28 +57,35 @@ async def google_drive_push(
     Requires HTTPS and a public hostname. Register the channel with POST /admin/google-drive/watch.
     """
     settings = get_settings()
+    logger.info("google_drive_push_received", has_token=bool(token))
     if not settings.google_drive_folder_id:
+        logger.warning("google_drive_push_rejected_not_configured")
         raise HTTPException(status_code=404, detail="Google Drive ingestion is not configured")
 
     try:
         assert_drive_ingest_config(settings)
     except ValueError as e:
+        logger.warning("google_drive_push_rejected_bad_config", error=str(e))
         raise HTTPException(status_code=503, detail=str(e)) from e
 
     if not settings.google_drive_webhook_token or token != settings.google_drive_webhook_token:
+        logger.warning("google_drive_push_rejected_bad_token")
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
     channel_header = request.headers.get("X-Goog-Channel-ID")
     if not channel_header:
+        logger.warning("google_drive_push_rejected_missing_channel")
         raise HTTPException(status_code=400, detail="Missing X-Goog-Channel-ID")
 
     async with async_session_factory() as session:
         state = await crud.get_drive_channel_state(session)
         if not state or state.channel_id != channel_header:
+            logger.warning("google_drive_push_rejected_unknown_channel", channel_id=channel_header)
             raise HTTPException(status_code=401, detail="Unknown notification channel")
 
     # Respond quickly; sync runs in background
     background_tasks.add_task(_run_drive_sync_safe)
+    logger.info("google_drive_push_accepted", channel_id=channel_header)
     return Response(status_code=200)
 
 
@@ -76,13 +95,17 @@ async def register_drive_watch(session: DbSession) -> dict:
     Create or renew a Drive push channel for GOOGLE_DRIVE_FOLDER_ID.
     Google expires channels (~7 days); call this again before expiry or on deploy.
     """
+    start = time.perf_counter()
     settings = get_settings()
+    logger.info("drive_watch_registration_started")
     try:
         assert_drive_ingest_config(settings)
     except ValueError as e:
+        logger.warning("drive_watch_registration_rejected_bad_config", error=str(e))
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     if not settings.google_drive_public_base_url.lower().startswith("https://"):
+        logger.warning("drive_watch_registration_rejected_non_https")
         raise HTTPException(
             status_code=400,
             detail="GOOGLE_DRIVE_PUBLIC_BASE_URL must be https:// (Google requires HTTPS for web_hook)",
@@ -96,7 +119,9 @@ async def register_drive_watch(session: DbSession) -> dict:
     prev = await crud.get_drive_channel_state(session)
     if prev and prev.resource_id and prev.channel_id:
         try:
+            logger.info("drive_stop_previous_channel_started", channel_id=prev.channel_id)
             await asyncio.to_thread(stop_channel_sync, svc, prev.channel_id, prev.resource_id)
+            logger.info("drive_stop_previous_channel_finished", channel_id=prev.channel_id)
         except Exception as e:
             logger.warning("drive_stop_previous_channel_failed", error=str(e))
 
@@ -117,6 +142,13 @@ async def register_drive_watch(session: DbSession) -> dict:
         resource_id=watch_resp.get("resourceId"),
         expiration_ms=exp_int,
     )
+    logger.info(
+        "drive_watch_registered",
+        channel_id=channel_uuid,
+        resource_id=watch_resp.get("resourceId"),
+        expiration_ms=exp_int,
+        duration_ms=round((time.perf_counter() - start) * 1000, 2),
+    )
 
     return {
         "channel_id": channel_uuid,
@@ -130,6 +162,11 @@ async def register_drive_watch(session: DbSession) -> dict:
 async def drive_status(session: DbSession) -> dict:
     settings = get_settings()
     state = await crud.get_drive_channel_state(session)
+    logger.info(
+        "drive_status_requested",
+        folder_configured=bool(settings.google_drive_folder_id),
+        has_channel=bool(state),
+    )
     return {
         "folder_configured": bool(settings.google_drive_folder_id),
         "tenant_id": settings.google_drive_tenant_id,
@@ -142,11 +179,19 @@ async def drive_status(session: DbSession) -> dict:
 @admin_router.post("/sync-now")
 async def drive_sync_now(session: DbSession) -> dict:
     """Manually scan the folder and queue new/changed PDFs (same as push handler)."""
+    start = time.perf_counter()
     settings = get_settings()
+    logger.info("drive_sync_now_started")
     try:
         assert_drive_minimal(settings)
     except ValueError as e:
+        logger.warning("drive_sync_now_rejected_bad_config", error=str(e))
         raise HTTPException(status_code=400, detail=str(e)) from e
 
     summary = await sync_folder_pdfs_to_pipeline(session)
+    logger.info(
+        "drive_sync_now_finished",
+        duration_ms=round((time.perf_counter() - start) * 1000, 2),
+        **summary,
+    )
     return summary
