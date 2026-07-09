@@ -117,8 +117,6 @@ PDFs must contain **extractable text**; scanned pages need OCR elsewhere first. 
 
 Google [Drive push notifications](https://developers.google.com/drive/api/guides/push) call your FastAPI URL when files change under a watched **folder**. The service downloads new or updated **PDFs**, extracts text, and queues them through the same Kafka ingest pipeline as manual uploads.
 
-For step-by-step local-machine setup, including service account creation, folder sharing, ngrok, webhook registration, and troubleshooting, see [GOOGLE_DRIVE_WEBHOOK_SETUP.md](./GOOGLE_DRIVE_WEBHOOK_SETUP.md).
-
 ### One-time setup
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project and **enable the Google Drive API**.
@@ -190,9 +188,62 @@ Response:
 }
 ```
 
+## 7. Run RAG evals
+
+The repo includes a lightweight eval runner that exercises the real API path:
+
+```
+eval document → /webhooks/ingest → Kafka consumer → embeddings/pgvector → /query → scored response
+```
+
+Start the app first:
+
+```bash
+docker compose up -d --build
+```
+
+Then run:
+
+```bash
+python scripts/run_rag_evals.py
+```
+
+The default suite is `evals/rag_smoke.jsonl`. Each JSONL case can define seed documents, a question, expected citation `source_id`s, required answer terms, and forbidden answer terms.
+
+By default, the runner isolates each case in a fresh tenant so previous eval documents cannot pollute retrieval. Use `--reuse-tenants` only when you intentionally want to test an existing tenant.
+
+## Production hardening
+
+Production mode is enabled with:
+
+```bash
+APP_ENVIRONMENT=production
+```
+
+In production, startup validates that unsafe defaults are not used:
+
+- `API_KEY` must be set. Protected endpoints require `X-API-Key`.
+- `WEBHOOK_SECRET` must be set. `/webhooks/ingest` requires HMAC validation.
+- `CORS_ALLOWED_ORIGINS` must be explicit and cannot be `*`.
+- `CREATE_DB_ON_STARTUP` must be `false`; run schema migrations or DDL separately.
+- The default development database password must not be used.
+
+Recommended production environment shape:
+
+```bash
+APP_ENVIRONMENT=production
+CREATE_DB_ON_STARTUP=false
+API_KEY=<long-random-api-key>
+WEBHOOK_SECRET=<long-random-hmac-secret>
+CORS_ALLOWED_ORIGINS=https://your-ui.example.com
+DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>:5432/<db>
+```
+
+This repository still needs a deployment-specific secret manager, TLS/reverse proxy configuration, backups, metrics/alerts, and real migration workflow before internet-facing use.
+
 ---
 
-## 7. Scale Consumer Workers
+## 8. Scale Consumer Workers
 
 Run multiple consumer instances (same consumer group = load balanced):
 

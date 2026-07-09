@@ -3,608 +3,1050 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ask Selectiva — RAG Query</title>
+  <title>Ask Selectiva</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0d0d0f;
-      --surface: #161619;
-      --border: #2a2a2e;
-      --text: #e8e6e3;
-      --text-muted: #8b8986;
-      --accent: #f59e0b;
-      --accent-hover: #fbbf24;
-      --success: #22c55e;
-      --error: #ef4444;
+      --bg: #eef4f8;
+      --panel: #ffffff;
+      --panel-soft: #f5f8fb;
+      --panel-tint: #e8f3ff;
+      --text: #102033;
+      --muted: #607085;
+      --line: #d7e1ea;
+      --line-strong: #bdcad8;
+      --brand: #1458a8;
+      --brand-dark: #0f3f7b;
+      --brand-soft: #e7f1ff;
+      --teal: #0f9f94;
+      --teal-soft: #def7f3;
+      --gold: #d48a13;
+      --amber: #b56a00;
+      --red: #c2410c;
+      --green: #15803d;
+      --shadow: 0 18px 44px rgba(16, 32, 51, 0.10);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: 'DM Sans', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
       min-height: 100vh;
-      line-height: 1.6;
-    }
-
-    .layout {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    header {
-      margin-bottom: 2.5rem;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      margin: 0;
-      background: linear-gradient(135deg, var(--text) 0%, var(--text-muted) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .tagline {
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      margin-top: 0.25rem;
-    }
-
-    .query-form {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }
-
-    .input-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    label {
-      font-size: 0.75rem;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    input[type="text"],
-    textarea {
-      width: 100%;
-      padding: 0.875rem 1rem;
-      font-family: inherit;
-      font-size: 1rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: var(--text);
-      transition: border-color 0.2s, box-shadow 0.2s;
+      background:
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 46%, #eaf1f7 100%);
+      line-height: 1.5;
     }
 
-    input:focus,
-    textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
-    }
-
-    textarea {
-      resize: vertical;
-      min-height: 100px;
-    }
-
-    .tenant-row {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .tenant-row input {
-      flex: 1;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.875rem;
-    }
+    button, input, textarea, select { font: inherit; }
 
     button {
-      padding: 0.875rem 1.5rem;
-      font-family: inherit;
-      font-size: 0.9375rem;
-      font-weight: 600;
-      background: var(--accent);
-      color: var(--bg);
-      border: none;
+      min-height: 40px;
+      border: 0;
       border-radius: 8px;
+      padding: 0 14px;
+      font-weight: 700;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-      align-self: flex-start;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.08s ease;
     }
 
-    button:hover {
-      background: var(--accent-hover);
-    }
+    button:active { transform: translateY(1px); }
+    button:disabled { cursor: not-allowed; opacity: 0.55; transform: none; }
 
-    button:active {
-      transform: scale(0.98);
-    }
+    .app { min-height: 100vh; display: grid; grid-template-rows: 58px 1fr; }
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .results {
-      flex: 1;
-      margin-top: 1rem;
-    }
-
-    .results-placeholder {
-      color: var(--text-muted);
-      font-size: 0.9375rem;
-      text-align: center;
-      padding: 3rem 1rem;
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-    }
-
-    .result-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-    }
-
-    .result-meta {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .result-answer {
-      font-size: 1rem;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .citations {
-      margin-top: 1.5rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .citations-title {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 0.75rem;
-    }
-
-    .citation {
-      display: block;
-      font-size: 0.875rem;
-      color: var(--accent);
-      text-decoration: none;
-      padding: 0.5rem 0;
-      border-radius: 4px;
-      transition: color 0.2s, background 0.2s;
-    }
-
-    .citation:hover {
-      color: var(--accent-hover);
-      background: rgba(245, 158, 11, 0.08);
-    }
-
-    .citation-title {
-      font-weight: 500;
-      color: var(--text);
-    }
-
-    .citation-uri {
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      margin-top: 0.125rem;
-    }
-
-    .error-msg {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: var(--error);
-      padding: 1rem;
-      border-radius: 8px;
-      font-size: 0.9375rem;
-      margin-top: 1rem;
-    }
-
-    .loading {
+    .topbar {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      color: var(--text-muted);
-      font-size: 0.9375rem;
-      padding: 1rem 0;
+      justify-content: space-between;
+      padding: 0 22px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(16px);
     }
 
-    .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    .upload-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
+    .brand-mark {
+      width: 34px;
+      height: 34px;
       border-radius: 8px;
-      padding: 1.25rem;
-      margin-bottom: 1.75rem;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--brand) 0%, var(--teal) 100%);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: 0;
+      box-shadow: 0 8px 18px rgba(20, 88, 168, 0.14);
     }
 
-    .section-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      display: block;
-      margin-bottom: 0.75rem;
+    .brand-title { font-size: 15px; font-weight: 800; line-height: 1.1; }
+    .brand-subtitle { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+    .env-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      background: #fff;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+    .dot.ok { background: var(--green); }
+    .dot.warn { background: var(--amber); }
+    .dot.err { background: var(--red); }
+
+    .shell { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); min-height: 0; }
+    .sidebar { background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%); border-right: 1px solid var(--line); padding: 18px; overflow: auto; }
+    .main { padding: 22px; overflow: auto; }
+    .stack { display: grid; gap: 14px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    .panel.pad { padding: 16px; }
+
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .section-title { margin: 0; font-size: 13px; font-weight: 800; color: var(--text); }
+    .section-note { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+    .field { display: grid; gap: 6px; margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+
+    label { font-size: 12px; font-weight: 800; color: var(--muted); }
+
+    input[type="text"], input[type="password"], textarea, select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      padding: 9px 11px;
+      outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
     }
 
     input[type="file"] {
-      font-size: 0.875rem;
-      color: var(--text-muted);
       width: 100%;
+      min-height: 40px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 8px;
+      padding: 9px;
+      background: linear-gradient(180deg, #ffffff 0%, var(--panel-soft) 100%);
+      color: var(--muted);
     }
 
-    .btn-secondary {
-      background: transparent;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-    }
+    input:focus, textarea:focus, select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14); }
+    .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .btn-primary { background: linear-gradient(135deg, var(--brand) 0%, var(--teal) 100%); color: #fff; box-shadow: 0 8px 18px rgba(20, 88, 168, 0.18); }
+    .btn-primary:hover { background: linear-gradient(135deg, var(--brand-dark) 0%, #0d7f76 100%); }
+    .btn-secondary { background: #fff; color: var(--brand); border: 1px solid var(--line-strong); }
+    .btn-secondary:hover { border-color: var(--brand); background: var(--brand-soft); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid transparent; }
+    .btn-ghost:hover { background: var(--panel-soft); color: var(--text); }
+    .button-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .status-grid { display: grid; gap: 8px; }
 
-    .btn-secondary:hover {
-      background: rgba(245, 158, 11, 0.12);
-    }
-
-    .upload-actions {
-      margin-top: 0.75rem;
+    .status-row {
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
       align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
     }
+
+    .status-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+    .status-value { font-size: 12px; color: var(--muted); text-align: right; overflow-wrap: anywhere; }
 
     .upload-status {
-      margin-top: 0.75rem;
-      font-size: 0.875rem;
-      color: var(--text-muted);
+      min-height: 38px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--muted);
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      margin-top: 12px;
     }
 
-    .upload-status.ok {
-      color: var(--success);
+    .upload-status.ok { color: var(--green); background: #eaf7ee; border-color: #b7e4c3; }
+    .upload-status.err { color: var(--red); background: #fff0e8; border-color: #fec7aa; }
+    .upload-status.wait { color: var(--amber); background: #fff7e6; border-color: #f7d38a; }
+    .recent-list { display: grid; gap: 8px; }
+
+    .doc-item { display: grid; gap: 3px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .doc-title { font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+    .doc-meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+    .chat-history-list { display: grid; gap: 8px; }
+    .chat-history-item {
+      width: 100%;
+      min-height: auto;
+      display: grid;
+      gap: 3px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: inherit;
+      text-align: left;
+      font-weight: 500;
+    }
+    .chat-history-item:hover { border-color: var(--brand); background: var(--brand-soft); }
+    .chat-history-item.active { border-color: var(--brand); background: var(--panel-tint); }
+    .chat-history-title { font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+    .chat-history-meta { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+    .query-panel { max-width: 980px; margin: 0 auto; display: grid; gap: 16px; }
+    .query-panel .ask-box { order: 1; }
+    .query-panel .answer-panel { order: 2; }
+    .query-panel.has-chat .answer-panel { order: 1; }
+    .query-panel.has-chat .ask-box { order: 2; }
+    .ask-box { padding: 18px; box-shadow: var(--shadow); }
+    .accent-pill {
+      color: var(--brand-dark);
+      border-color: #b9d8ff;
+      background: linear-gradient(135deg, var(--brand-soft), var(--teal-soft));
     }
 
-    .upload-status.err {
-      color: var(--error);
+    .ask-box {
+      background:
+        linear-gradient(90deg, rgba(20, 88, 168, 0.08), rgba(15, 159, 148, 0.08)),
+        var(--panel);
+    }
+
+    .ask-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 14px; }
+    .ask-title { margin: 0; font-size: 22px; line-height: 1.2; letter-spacing: 0; }
+    .ask-copy { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
+    textarea { min-height: 132px; resize: vertical; line-height: 1.55; }
+    .query-controls { display: grid; grid-template-columns: minmax(150px, 180px) 1fr auto; gap: 10px; align-items: end; margin-top: 12px; }
+    .answer-panel { min-height: 360px; overflow: hidden; }
+
+    .answer-state {
+      display: grid;
+      place-items: center;
+      min-height: 360px;
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+      background: linear-gradient(180deg, #fff 0%, #f7fafc 100%);
+    }
+
+    .answer-card { padding: 20px; }
+    .answer-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+    .answer-label { font-size: 12px; font-weight: 800; color: var(--muted); }
+    .answer-meta { font-size: 12px; color: var(--muted); font-family: "JetBrains Mono", ui-monospace, monospace; }
+    .answer-text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .chat-thread { display: grid; gap: 14px; padding: 16px; }
+    .chat-message { display: flex; }
+    .chat-message.user { justify-content: flex-end; }
+    .chat-message.assistant { justify-content: flex-start; }
+    .chat-bubble { max-width: min(760px, 92%); padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow-wrap: anywhere; }
+    .chat-message.user .chat-bubble { background: var(--brand-soft); border-color: #c8ddf7; }
+    .chat-message.assistant .chat-bubble { background: var(--panel-soft); }
+    .chat-meta { margin-bottom: 7px; font-size: 12px; font-weight: 800; color: var(--muted); font-family: "JetBrains Mono", ui-monospace, monospace; }
+    .chat-text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; }
+    .sources { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .sources-grid { display: grid; gap: 10px; margin-top: 10px; }
+
+    .source-card { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: inherit; text-decoration: none; }
+    .source-card:hover { border-color: var(--teal); background: var(--teal-soft); }
+    .source-title { font-size: 13px; font-weight: 800; overflow-wrap: anywhere; }
+    .source-uri { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+
+    .error-box { color: var(--red); background: #fff0e8; border: 1px solid #fec7aa; border-radius: 8px; padding: 14px; text-align: left; width: 100%; }
+    .spinner { width: 22px; height: 22px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 880px) {
+      .app { grid-template-rows: auto 1fr; }
+      .topbar { align-items: flex-start; gap: 14px; padding: 14px 16px; flex-direction: column; }
+      .brand { width: 100%; align-items: flex-start; }
+      .brand > div:last-child { min-width: 0; }
+      .brand-subtitle { white-space: normal; }
+      .topbar-actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .main { padding: 16px; }
+      .query-controls { grid-template-columns: 1fr; }
+      .ask-header { flex-direction: column; }
+      .chat-bubble { max-width: 100%; }
     }
   </style>
 </head>
 <body>
-  <div class="layout">
-    <header>
-      <h1>Ask Selectiva</h1>
-      <p class="tagline">Query your knowledge base with local AI</p>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">AS</div>
+        <div>
+          <div class="brand-title">Ask Selectiva</div>
+          <div class="brand-subtitle">AI knowledge ingestion and retrieval console</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="env-pill"><span class="dot" id="apiDot"></span><span id="apiStatusText">Checking API</span></div>
+        <button type="button" class="btn-ghost" id="refreshHealthBtn">Refresh</button>
+      </div>
     </header>
 
-    <form class="query-form" id="queryForm">
-      <div class="input-group">
-        <label for="tenantId">Tenant ID</label>
-        <input
-          type="text"
-          id="tenantId"
-          value="00000000-0000-0000-0000-000000000001"
-          placeholder="00000000-0000-0000-0000-000000000001"
-        >
-      </div>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="stack">
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">Workspace</h2>
+                <p class="section-note">Tenant and request credentials</p>
+              </div>
+            </div>
+            <div class="field">
+              <label for="tenantId">Tenant ID</label>
+              <input class="mono" type="text" id="tenantId" value="00000000-0000-0000-0000-000000000001" placeholder="00000000-0000-0000-0000-000000000001">
+            </div>
+            <div class="field">
+              <label for="apiKey">API key</label>
+              <input type="password" id="apiKey" placeholder="Only required when enabled">
+            </div>
+            <div class="button-row">
+              <button type="button" class="btn-secondary" id="saveSettingsBtn">Save</button>
+              <button type="button" class="btn-ghost" id="clearSettingsBtn">Clear</button>
+            </div>
+          </section>
 
-      <div class="upload-card">
-        <span class="section-label">Upload PDF</span>
-        <div class="input-group">
-          <label for="pdfFile">PDF file</label>
-          <input type="file" id="pdfFile" accept=".pdf,application/pdf">
-        </div>
-        <div class="input-group">
-          <label for="pdfTitle">Title (optional)</label>
-          <input type="text" id="pdfTitle" placeholder="Defaults to file name">
-        </div>
-        <div class="input-group">
-          <label for="pdfSourceId">Source ID (optional)</label>
-          <input type="text" id="pdfSourceId" placeholder="Stable id to replace same doc on re-upload">
-        </div>
-        <div class="upload-actions">
-          <button type="button" class="btn-secondary" id="pdfUploadBtn">Ingest PDF</button>
-        </div>
-        <div class="upload-status" id="uploadStatus"></div>
-      </div>
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">Chat History</h2>
+                <p class="section-note">Saved chats for this tenant</p>
+              </div>
+            </div>
+            <div class="chat-history-list" id="chatHistoryList">
+              <button type="button" class="chat-history-item active">
+                <span class="chat-history-title">New chat</span>
+                <span class="chat-history-meta">No messages yet</span>
+              </button>
+            </div>
+          </section>
 
-      <div class="input-group">
-        <label for="question">Question</label>
-        <textarea
-          id="question"
-          placeholder="e.g. How does the ingestion pipeline work?"
-          required
-        ></textarea>
-      </div>
-      <button type="submit" id="submitBtn">Search</button>
-    </form>
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">System Status</h2>
+                <p class="section-note">Runtime checks from this API</p>
+              </div>
+            </div>
+            <div class="status-grid">
+              <div class="status-row">
+                <div class="status-name"><span class="dot" id="apiRowDot"></span>API</div>
+                <div class="status-value" id="apiRowText">Pending</div>
+              </div>
+              <div class="status-row">
+                <div class="status-name"><span class="dot" id="dbRowDot"></span>Database</div>
+                <div class="status-value" id="dbRowText">Pending</div>
+              </div>
+              <div class="status-row">
+                <div class="status-name"><span class="dot" id="ollamaRowDot"></span>Ollama</div>
+                <div class="status-value" id="ollamaRowText">Pending</div>
+              </div>
+            </div>
+          </section>
 
-    <div class="results" id="results">
-      <div class="results-placeholder" id="placeholder">
-        Enter a question above and click Search to query your knowledge base.
-      </div>
-      <div id="resultsContent"></div>
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">Knowledge Sources</h2>
+                <p class="section-note">Upload PDFs for retrieval</p>
+              </div>
+            </div>
+            <div class="field">
+              <label for="pdfFile">PDF file</label>
+              <input type="file" id="pdfFile" accept=".pdf,application/pdf">
+            </div>
+            <div class="field">
+              <label for="pdfTitle">Title</label>
+              <input type="text" id="pdfTitle" placeholder="Defaults to file name">
+            </div>
+            <div class="field">
+              <label for="pdfSourceId">Source ID</label>
+              <input type="text" id="pdfSourceId" placeholder="Stable id for replacement">
+            </div>
+            <div class="button-row">
+              <button type="button" class="btn-primary" id="pdfUploadBtn">Ingest PDF</button>
+            </div>
+            <div class="upload-status" id="uploadStatus">No upload in progress.</div>
+          </section>
+
+          <section class="panel pad">
+            <div class="section-head">
+              <div>
+                <h2 class="section-title">Recent Documents</h2>
+                <p class="section-note">Uploads from this browser session</p>
+              </div>
+            </div>
+            <div class="recent-list" id="recentDocs">
+              <div class="doc-item">
+                <div class="doc-title">No documents queued</div>
+                <div class="doc-meta">Uploaded documents will appear here.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div class="query-panel" id="queryPanel">
+          <section class="panel ask-box">
+            <div class="ask-header">
+              <div>
+                <h1 class="ask-title">Ask your knowledge base</h1>
+                <p class="ask-copy">Answers are generated from retrieved context and returned with citations.</p>
+              </div>
+              <div class="env-pill accent-pill"><span class="dot ok"></span><span>Local RAG</span></div>
+            </div>
+            <form id="queryForm">
+              <div class="field">
+                <label for="question">Question</label>
+                <textarea id="question" placeholder="How does the ingestion pipeline work?" required></textarea>
+              </div>
+              <div class="query-controls">
+                <div class="field">
+                  <label for="llmProvider">LLM provider</label>
+                  <select id="llmProvider">
+                    <option value="ollama" selected>Ollama (local)</option>
+                    <option value="openai">OpenAI API</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="topK">Retrieval depth</label>
+                  <select id="topK">
+                    <option value="3">Focused</option>
+                    <option value="5" selected>Balanced</option>
+                    <option value="8">Broad</option>
+                  </select>
+                </div>
+                <div></div>
+                <div class="button-row">
+                  <button type="submit" class="btn-primary" id="submitBtn">Ask</button>
+                  <button type="button" class="btn-secondary" id="newChatBtn">New chat</button>
+                </div>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel answer-panel" id="answerPanel">
+            <div class="answer-state" id="answerState">
+              <div>
+                <div class="section-title">Ready for a question</div>
+                <p class="section-note">Upload knowledge, confirm the document is ready, then query it from here.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   </div>
 
   <script>
     const form = document.getElementById('queryForm');
+    const queryPanel = document.getElementById('queryPanel');
     const questionInput = document.getElementById('question');
     const tenantInput = document.getElementById('tenantId');
+    const apiKeyInput = document.getElementById('apiKey');
+    const llmProviderInput = document.getElementById('llmProvider');
+    const topKInput = document.getElementById('topK');
     const submitBtn = document.getElementById('submitBtn');
-    const placeholder = document.getElementById('placeholder');
-    const resultsContent = document.getElementById('resultsContent');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const answerPanel = document.getElementById('answerPanel');
     const pdfFile = document.getElementById('pdfFile');
     const pdfTitle = document.getElementById('pdfTitle');
     const pdfSourceId = document.getElementById('pdfSourceId');
     const pdfUploadBtn = document.getElementById('pdfUploadBtn');
     const uploadStatus = document.getElementById('uploadStatus');
+    const recentDocs = document.getElementById('recentDocs');
+    const chatHistoryList = document.getElementById('chatHistoryList');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const clearSettingsBtn = document.getElementById('clearSettingsBtn');
+    const refreshHealthBtn = document.getElementById('refreshHealthBtn');
 
-    /**
-     * Resolve API URL. Uses URL() + explicit origin so Safari accepts the string (avoids
-     * "The string did not match the expected pattern"). Prefer 127.0.0.1 fallback for file://.
-     */
+    const state = { documents: [], pollTimers: new Map() };
+    const maxContextTurns = 12;
+    const maxSavedChats = 30;
+    let chatSessions = [];
+    let activeChatId = '';
+    let chatMessages = [];
+
+    initSettings();
+    loadChatSessions();
+    ensureActiveChat();
+    renderRecentDocs();
+    renderChatHistory();
+    renderChat();
+    refreshHealth();
+
     function apiUrl(path) {
       const p = path.startsWith('/') ? path : '/' + path;
       const fallbackOrigin = 'http://127.0.0.1:8000';
-      if (window.location.protocol === 'file:') {
-        return fallbackOrigin + p;
-      }
+      if (window.location.protocol === 'file:') return fallbackOrigin + p;
       try {
-        const origin =
-          window.location.origin && window.location.origin !== 'null'
-            ? window.location.origin
-            : fallbackOrigin;
-        const base = origin.endsWith('/') ? origin : origin + '/';
-        return new URL(p, base).href;
+        const origin = window.location.origin && window.location.origin !== 'null' ? window.location.origin : fallbackOrigin;
+        return new URL(p, origin.endsWith('/') ? origin : origin + '/').href;
       } catch (_) {
         return fallbackOrigin + p;
       }
     }
 
-    function getApiDisplayBase() {
-      try {
-        return new URL(apiUrl('/')).origin;
-      } catch (_) {
-        return 'http://127.0.0.1:8000';
-      }
+    function authHeaders(base = {}) {
+      const apiKey = apiKeyInput.value.trim();
+      return apiKey ? { ...base, 'X-API-Key': apiKey } : base;
     }
+
+    function initSettings() {
+      const tenant = localStorage.getItem('ask-selectiva.tenantId');
+      const apiKey = localStorage.getItem('ask-selectiva.apiKey');
+      if (tenant) tenantInput.value = tenant;
+      if (apiKey) apiKeyInput.value = apiKey;
+    }
+
+    saveSettingsBtn.addEventListener('click', () => {
+      localStorage.setItem('ask-selectiva.tenantId', tenantInput.value.trim());
+      localStorage.setItem('ask-selectiva.apiKey', apiKeyInput.value.trim());
+      setUploadStatus('Settings saved.', 'ok');
+      loadChatSessions();
+      ensureActiveChat();
+      renderChatHistory();
+      renderChat();
+      refreshHealth();
+    });
+
+    clearSettingsBtn.addEventListener('click', () => {
+      localStorage.removeItem('ask-selectiva.tenantId');
+      localStorage.removeItem('ask-selectiva.apiKey');
+      apiKeyInput.value = '';
+      setUploadStatus('Saved API key cleared.', 'wait');
+      refreshHealth();
+    });
+
+    refreshHealthBtn.addEventListener('click', refreshHealth);
+    newChatBtn.addEventListener('click', startNewChat);
+    chatHistoryList.addEventListener('click', (event) => {
+      const item = event.target.closest('[data-chat-id]');
+      if (!item) return;
+      selectChat(item.dataset.chatId);
+    });
+
+    tenantInput.addEventListener('change', () => {
+      loadChatSessions();
+      ensureActiveChat();
+      renderChatHistory();
+      renderChat();
+    });
 
     async function readApiResponse(res) {
       const text = await res.text();
       let data = null;
       if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch (_) {
-          data = null;
-        }
+        try { data = JSON.parse(text); } catch (_) { data = null; }
       }
       return { ok: res.ok, status: res.status, data, text };
     }
 
+    function parseApiError(data) {
+      if (!data || data.detail === undefined || data.detail === null) return 'Request failed';
+      if (Array.isArray(data.detail)) return data.detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+      return typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    }
+
     function errorMessageFromRead({ data, text, status }) {
-      if (data && data.detail !== undefined && data.detail !== null) {
-        return parseApiError(data);
-      }
-      const t = (text || '').trim().replace(/\s+/g, ' ');
-      if (t.length > 280) return t.slice(0, 280) + '…';
-      if (t) return t;
+      if (data && data.detail !== undefined && data.detail !== null) return parseApiError(data);
+      const compact = (text || '').trim().replace(/\s+/g, ' ');
+      if (compact) return compact.length > 260 ? compact.slice(0, 260) + '...' : compact;
       return 'Request failed (HTTP ' + status + ')';
     }
 
-    function setLoading(loading) {
-      submitBtn.disabled = loading;
-      if (loading) {
-        placeholder.innerHTML = '<div class="loading"><div class="spinner"></div>Searching...</div>';
-        resultsContent.innerHTML = '';
+    function isChatMessage(item) {
+      return item &&
+        (item.role === 'user' || item.role === 'assistant') &&
+        typeof item.content === 'string' &&
+        item.content.trim();
+    }
+
+    function chatSessionsStorageKey() {
+      return 'ask-selectiva.chats.' + (tenantInput.value.trim() || 'default');
+    }
+
+    function activeChatStorageKey() {
+      return 'ask-selectiva.activeChat.' + (tenantInput.value.trim() || 'default');
+    }
+
+    function newChatId() {
+      return 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    }
+
+    function createChatSession(messages = []) {
+      const now = new Date().toISOString();
+      return {
+        id: newChatId(),
+        title: titleFromMessages(messages),
+        createdAt: now,
+        updatedAt: now,
+        messages: messages.filter(isChatMessage),
+      };
+    }
+
+    function titleFromMessages(messages) {
+      const firstUser = messages.find(m => m.role === 'user' && m.content.trim());
+      if (!firstUser) return 'New chat';
+      return firstUser.content.trim().replace(/\s+/g, ' ').slice(0, 54);
+    }
+
+    function loadChatSessions() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(chatSessionsStorageKey()) || '[]');
+        chatSessions = Array.isArray(parsed)
+          ? parsed
+              .filter(session => session && session.id)
+              .map(session => ({
+                id: String(session.id),
+                title: session.title || titleFromMessages(session.messages || []),
+                createdAt: session.createdAt || new Date().toISOString(),
+                updatedAt: session.updatedAt || session.createdAt || new Date().toISOString(),
+                messages: Array.isArray(session.messages) ? session.messages.filter(isChatMessage) : [],
+              }))
+          : [];
+      } catch (_) {
+        chatSessions = [];
+      }
+
+      if (!chatSessions.length) {
+        try {
+          const legacy = JSON.parse(sessionStorage.getItem('ask-selectiva.chat.' + (tenantInput.value.trim() || 'default')) || '[]');
+          if (Array.isArray(legacy) && legacy.some(isChatMessage)) {
+            chatSessions = [createChatSession(legacy)];
+          }
+        } catch (_) {
+          // Ignore old one-chat storage if it cannot be parsed.
+        }
+      }
+
+      activeChatId = localStorage.getItem(activeChatStorageKey()) || '';
+    }
+
+    function saveChatSessions() {
+      try {
+        pruneEmptyChatSessions();
+        localStorage.setItem(chatSessionsStorageKey(), JSON.stringify(chatSessions.slice(0, maxSavedChats)));
+        localStorage.setItem(activeChatStorageKey(), activeChatId);
+      } catch (_) {
+        // Chat history is useful, but querying still works when storage is unavailable.
       }
     }
 
-    function showError(msg) {
-      placeholder.innerHTML = '';
-      resultsContent.innerHTML = '';
-      const el = document.createElement('div');
-      el.className = 'error-msg';
-      el.textContent = msg;
-      resultsContent.appendChild(el);
+    function activeChat() {
+      return chatSessions.find(session => session.id === activeChatId) || null;
     }
 
-    function showResults(data) {
-      placeholder.innerHTML = '';
+    function isEmptyChatSession(session) {
+      return !session || !Array.isArray(session.messages) || !session.messages.some(isChatMessage);
+    }
 
-      const meta = document.createElement('div');
-      meta.className = 'result-meta';
-      meta.textContent = `Model: ${data.model_used}`;
+    function pruneEmptyChatSessions() {
+      let keptEmpty = false;
+      chatSessions = chatSessions.filter(session => {
+        if (!isEmptyChatSession(session)) return true;
+        if (session.id === activeChatId) {
+          keptEmpty = true;
+          return true;
+        }
+        if (!keptEmpty) {
+          keptEmpty = true;
+          return true;
+        }
+        return false;
+      });
+    }
 
-      const answer = document.createElement('div');
-      answer.className = 'result-answer';
-      answer.textContent = data.answer;
+    function ensureActiveChat() {
+      if (!chatSessions.length) {
+        const session = createChatSession();
+        chatSessions.unshift(session);
+        activeChatId = session.id;
+      }
+      if (!activeChat()) activeChatId = chatSessions[0].id;
+      chatMessages = activeChat()?.messages || [];
+      saveChatSessions();
+    }
 
-      let citationsHtml = '';
-      if (data.citations && data.citations.length > 0) {
-        citationsHtml = `
-          <div class="citations">
-            <div class="citations-title">Sources</div>
-            ${data.citations.map(c => `
-              <a href="${c.uri || '#'}" target="_blank" rel="noopener" class="citation">
-                <span class="citation-title">${c.title || 'Untitled'}</span>
-                ${c.uri ? `<div class="citation-uri">${c.uri}</div>` : ''}
-              </a>
-            `).join('')}
-          </div>
-        `;
+    function syncActiveChat() {
+      let session = activeChat();
+      if (!session) {
+        session = createChatSession();
+        chatSessions.unshift(session);
+        activeChatId = session.id;
+      }
+      session.messages = chatMessages.filter(isChatMessage);
+      session.title = titleFromMessages(session.messages);
+      session.updatedAt = new Date().toISOString();
+      chatSessions = [session, ...chatSessions.filter(item => item.id !== session.id)].slice(0, maxSavedChats);
+      saveChatSessions();
+      renderChatHistory();
+    }
+
+    function startNewChat() {
+      if (!chatMessages.length) {
+        syncActiveChat();
+        renderChat();
+        questionInput.focus();
+        return;
       }
 
-      const card = document.createElement('div');
-      card.className = 'result-card';
-      card.innerHTML = `
-        <div class="result-meta">Model: ${data.model_used}</div>
-        <div class="result-answer">${escapeHtml(data.answer)}</div>
-        ${citationsHtml}
-      `;
+      syncActiveChat();
+      const emptySession = chatSessions.find(session => session.id !== activeChatId && isEmptyChatSession(session));
+      if (emptySession) {
+        activeChatId = emptySession.id;
+        chatMessages = [];
+        chatSessions = [emptySession, ...chatSessions.filter(item => item.id !== emptySession.id)];
+        saveChatSessions();
+        renderChatHistory();
+        renderChat();
+        questionInput.focus();
+        return;
+      }
 
-      resultsContent.innerHTML = '';
-      resultsContent.appendChild(card);
+      const session = createChatSession();
+      chatSessions.unshift(session);
+      activeChatId = session.id;
+      chatMessages = [];
+      saveChatSessions();
+      renderChatHistory();
+      renderChat();
+      questionInput.focus();
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML.replace(/\n/g, '<br>');
+    function selectChat(chatId) {
+      syncActiveChat();
+      const session = chatSessions.find(item => item.id === chatId);
+      if (!session) return;
+      activeChatId = session.id;
+      chatMessages = session.messages || [];
+      saveChatSessions();
+      renderChatHistory();
+      renderChat();
     }
 
-    function parseApiError(data) {
-      if (!data.detail) return 'Request failed';
-      return Array.isArray(data.detail)
-        ? data.detail.map(d => d.msg || JSON.stringify(d)).join('; ')
-        : typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    function renderChatHistory() {
+      if (!chatSessions.length) {
+        chatHistoryList.innerHTML = '';
+        return;
+      }
+      chatHistoryList.innerHTML = chatSessions.map(session => `
+        <button type="button" class="chat-history-item${session.id === activeChatId ? ' active' : ''}" data-chat-id="${escapeAttr(session.id)}">
+          <span class="chat-history-title">${escapeHtml(session.title || 'New chat')}</span>
+          <span class="chat-history-meta">${escapeHtml(chatSummary(session))}</span>
+        </button>
+      `).join('');
+    }
+
+    function chatSummary(session) {
+      const count = Array.isArray(session.messages) ? session.messages.length : 0;
+      if (!count) return 'No messages yet';
+      const when = session.updatedAt ? new Date(session.updatedAt) : null;
+      const time = when && !Number.isNaN(when.getTime())
+        ? when.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : 'Saved';
+      return `${count} message${count === 1 ? '' : 's'} · ${time}`;
+    }
+
+    function getHistoryForRequest() {
+      return chatMessages
+        .filter(isChatMessage)
+        .slice(-maxContextTurns)
+        .map(({ role, content }) => ({ role, content }));
+    }
+
+    function setDot(id, stateName) {
+      const el = document.getElementById(id);
+      el.className = 'dot' + (stateName ? ' ' + stateName : '');
+    }
+
+    function setStatus(row, ok, text) {
+      setDot(row + 'Dot', ok === true ? 'ok' : ok === false ? 'err' : 'warn');
+      document.getElementById(row + 'Text').textContent = text;
+    }
+
+    async function refreshHealth() {
+      setDot('apiDot', 'warn');
+      document.getElementById('apiStatusText').textContent = 'Checking API';
+      setStatus('apiRow', null, 'Checking');
+      setStatus('dbRow', null, 'Checking');
+      setStatus('ollamaRow', null, 'Checking');
+
+      try {
+        const health = await fetch(apiUrl('/admin/health'), { headers: authHeaders() });
+        const parsed = await readApiResponse(health);
+        if (!parsed.ok) throw new Error(errorMessageFromRead(parsed));
+        setDot('apiDot', 'ok');
+        document.getElementById('apiStatusText').textContent = 'API Online';
+        setStatus('apiRow', true, 'Online');
+      } catch (err) {
+        setDot('apiDot', 'err');
+        document.getElementById('apiStatusText').textContent = 'API Offline';
+        setStatus('apiRow', false, err.message);
+      }
+
+      try {
+        const db = await fetch(apiUrl('/admin/health/db'), { headers: authHeaders() });
+        const parsed = await readApiResponse(db);
+        setStatus('dbRow', parsed.ok, parsed.ok ? 'Connected' : errorMessageFromRead(parsed));
+      } catch (err) {
+        setStatus('dbRow', false, err.message);
+      }
+
+      try {
+        const ollama = await fetch(apiUrl('/admin/ollama/ping'), { headers: authHeaders() });
+        const parsed = await readApiResponse(ollama);
+        if (!parsed.ok || !parsed.data) {
+          setStatus('ollamaRow', false, errorMessageFromRead(parsed));
+          return;
+        }
+        const checks = parsed.data.checks || {};
+        const ok = Object.values(checks).some(c => c && c.status_code && c.status_code < 500);
+        setStatus('ollamaRow', ok, ok ? 'Reachable' : 'Unavailable');
+      } catch (err) {
+        setStatus('ollamaRow', false, err.message);
+      }
+    }
+
+    function setUploadStatus(message, kind = '') {
+      uploadStatus.className = 'upload-status' + (kind ? ' ' + kind : '');
+      uploadStatus.textContent = message;
+    }
+
+    function renderRecentDocs() {
+      if (!state.documents.length) {
+        recentDocs.innerHTML = '<div class="doc-item"><div class="doc-title">No documents queued</div><div class="doc-meta">Uploaded documents will appear here.</div></div>';
+        return;
+      }
+      recentDocs.innerHTML = state.documents.map(doc => `
+        <div class="doc-item">
+          <div class="doc-title">${escapeHtml(doc.title || doc.sourceId || doc.documentId)}</div>
+          <div class="doc-meta">${escapeHtml(doc.status)} · ${escapeHtml(doc.documentId)}</div>
+        </div>
+      `).join('');
+    }
+
+    async function pollDocument(documentId) {
+      if (state.pollTimers.has(documentId)) clearTimeout(state.pollTimers.get(documentId));
+      try {
+        const res = await fetch(apiUrl('/admin/documents/' + documentId + '/status'), { headers: authHeaders() });
+        const parsed = await readApiResponse(res);
+        if (!parsed.ok || !parsed.data) throw new Error(errorMessageFromRead(parsed));
+        const doc = state.documents.find(d => d.documentId === documentId);
+        if (doc) {
+          doc.status = parsed.data.status + ' · ' + parsed.data.chunk_count + ' chunks';
+          renderRecentDocs();
+        }
+        if (parsed.data.status === 'ready') {
+          setUploadStatus('Document is ready for questions.', 'ok');
+          return;
+        }
+        if (parsed.data.status === 'failed') {
+          setUploadStatus('Document ingestion failed.', 'err');
+          return;
+        }
+        const timer = setTimeout(() => pollDocument(documentId), 1800);
+        state.pollTimers.set(documentId, timer);
+      } catch (err) {
+        setUploadStatus('Status check failed: ' + err.message, 'err');
+      }
     }
 
     pdfUploadBtn.addEventListener('click', async () => {
-      uploadStatus.className = 'upload-status';
-      uploadStatus.textContent = '';
-
       const f = pdfFile.files && pdfFile.files[0];
-      if (!f) {
-        uploadStatus.className = 'upload-status err';
-        uploadStatus.textContent = 'Choose a PDF file first.';
-        return;
-      }
-
+      if (!f) return setUploadStatus('Choose a PDF file first.', 'err');
       const tenantId = tenantInput.value.trim();
-      if (!tenantId) {
-        uploadStatus.className = 'upload-status err';
-        uploadStatus.textContent = 'Enter a tenant ID above.';
-        return;
-      }
+      if (!tenantId) return setUploadStatus('Enter a tenant ID first.', 'err');
 
       const fd = new FormData();
       fd.append('tenant_id', tenantId);
       fd.append('file', f);
-      const t = pdfTitle.value.trim();
-      if (t) fd.append('title', t);
-      const sid = pdfSourceId.value.trim();
-      if (sid) fd.append('source_id', sid);
+      const title = pdfTitle.value.trim();
+      const sourceId = pdfSourceId.value.trim();
+      if (title) fd.append('title', title);
+      if (sourceId) fd.append('source_id', sourceId);
 
       pdfUploadBtn.disabled = true;
-      uploadStatus.textContent = 'Uploading and extracting text…';
-
+      setUploadStatus('Uploading and extracting text...', 'wait');
       try {
-        const res = await fetch(apiUrl('/upload/pdf'), {
-          method: 'POST',
-          body: fd,
-        });
+        const res = await fetch(apiUrl('/upload/pdf'), { method: 'POST', headers: authHeaders(), body: fd });
         const parsed = await readApiResponse(res);
-
-        if (!parsed.ok) {
-          uploadStatus.className = 'upload-status err';
-          uploadStatus.textContent = errorMessageFromRead(parsed);
-          return;
-        }
-
+        if (!parsed.ok || !parsed.data) throw new Error(errorMessageFromRead(parsed));
         const data = parsed.data;
-        if (!data) {
-          uploadStatus.className = 'upload-status err';
-          uploadStatus.textContent = errorMessageFromRead(parsed);
-          return;
-        }
-
-        uploadStatus.className = 'upload-status ok';
-        uploadStatus.textContent =
-          `Queued (${data.chars_extracted != null ? data.chars_extracted + ' chars extracted. ' : ''}Document ${data.document_id}). Wait a few seconds, then search.`;
+        state.documents.unshift({ documentId: data.document_id, title: title || f.name, sourceId: sourceId || f.name, status: 'queued' });
+        state.documents = state.documents.slice(0, 6);
+        renderRecentDocs();
+        setUploadStatus('Queued. Waiting for ingestion to finish...', 'wait');
+        pollDocument(data.document_id);
       } catch (err) {
-        uploadStatus.className = 'upload-status err';
-        uploadStatus.textContent =
-          `Network error: ${err.message}. Is the API running at ${getApiDisplayBase()}?`;
+        setUploadStatus('Upload failed: ' + err.message, 'err');
       } finally {
         pdfUploadBtn.disabled = false;
       }
     });
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
       const question = questionInput.value.trim();
       const tenantId = tenantInput.value.trim();
-
       if (!question) return;
+      if (!tenantId) return showError('Tenant ID is required.');
 
-      setLoading(true);
-
+      const history = getHistoryForRequest();
+      chatMessages.push({ role: 'user', content: question });
+      syncActiveChat();
+      questionInput.value = '';
+      submitBtn.disabled = true;
+      showLoading();
       try {
         const res = await fetch(apiUrl('/query'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tenant_id: tenantId, question }),
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            question,
+            top_k: Number(topKInput.value || 5),
+            llm_provider: llmProviderInput.value,
+            history,
+          }),
         });
-
         const parsed = await readApiResponse(res);
-
-        if (!parsed.ok) {
-          showError(errorMessageFromRead(parsed));
-          return;
-        }
-
-        const data = parsed.data;
-        if (!data) {
-          showError(errorMessageFromRead(parsed));
-          return;
-        }
-
-        showResults(data);
+        if (!parsed.ok || !parsed.data) throw new Error(errorMessageFromRead(parsed));
+        showAnswer(parsed.data);
       } catch (err) {
-        showError(
-          `Network error: ${err.message}. Is the API running at ${getApiDisplayBase()}?`,
-        );
+        showError(err.message);
       } finally {
-        setLoading(false);
+        submitBtn.disabled = false;
       }
     });
+
+    function showLoading() {
+      renderChat({ loading: true });
+    }
+
+    function showError(message) {
+      renderChat({ error: message });
+    }
+
+    function showAnswer(data) {
+      chatMessages.push({
+        role: 'assistant',
+        content: data.answer || '',
+        model_used: data.model_used,
+        citations: Array.isArray(data.citations) ? data.citations : [],
+      });
+      syncActiveChat();
+      renderChat();
+    }
+
+    function renderChat({ loading = false, error = '' } = {}) {
+      queryPanel.classList.toggle('has-chat', Boolean(chatMessages.length || loading || error));
+      if (!chatMessages.length && !loading && !error) {
+        answerPanel.innerHTML = `
+          <div class="answer-state">
+            <div>
+              <div class="section-title">Ready for a question</div>
+              <p class="section-note">Ask a question, then follow up naturally. This chat keeps recent context for the current browser session.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const messages = chatMessages.map(messageHtml).join('');
+      const loadingHtml = loading ? `
+        <div class="chat-message assistant">
+          <div class="chat-bubble">
+            <div class="spinner"></div>
+            <div class="section-title">Thinking with recent context</div>
+            <p class="section-note">Embedding the follow-up, searching vectors, and generating an answer.</p>
+          </div>
+        </div>
+      ` : '';
+      const errorHtml = error ? '<div class="error-box">' + escapeHtml(error) + '</div>' : '';
+      answerPanel.innerHTML = '<div class="chat-thread">' + messages + loadingHtml + errorHtml + '</div>';
+      answerPanel.lastElementChild?.lastElementChild?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+
+    function messageHtml(message) {
+      const isAssistant = message.role === 'assistant';
+      const citations = dedupeCitations(Array.isArray(message.citations) ? message.citations : []);
+      const sources = isAssistant && citations.length ? `
+        <div class="sources">
+          <div class="answer-label">Sources</div>
+          <div class="sources-grid">${citations.map(c => sourceHtml(c)).join('')}</div>
+        </div>
+      ` : '';
+      const meta = isAssistant
+        ? 'Ask Selectiva' + (message.model_used ? ' · ' + escapeHtml(message.model_used) : '')
+        : 'You';
+      return `
+        <div class="chat-message ${escapeAttr(message.role)}">
+          <div class="chat-bubble">
+            <div class="chat-meta">${meta}</div>
+            <div class="chat-text">${escapeHtml(message.content || '')}</div>
+            ${sources}
+          </div>
+        </div>
+      `;
+    }
+
+    function dedupeCitations(citations) {
+      const unique = [];
+      const seen = new Set();
+      for (const citation of citations) {
+        const key = citationKey(citation);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        unique.push(citation);
+        if (unique.length >= 2) break;
+      }
+      return unique;
+    }
+
+    function citationKey(citation) {
+      for (const value of [citation.title, citation.uri, citation.source_id]) {
+        const cleaned = String(value || '').trim().replace(/\/+$/, '').split('/').pop().split('?')[0].toLowerCase();
+        if (cleaned) return cleaned;
+      }
+      return String((citation.source_type || '') + ':' + (citation.source_id || '')).toLowerCase();
+    }
+
+    function sourceHtml(citation) {
+      const title = citation.title || citation.source_id || 'Untitled source';
+      const uri = citation.uri || '';
+      const meta = uri || [citation.source_type, citation.source_id].filter(Boolean).join(':');
+      if (uri) return `<a class="source-card" href="${escapeAttr(uri)}" target="_blank" rel="noopener"><div class="source-title">${escapeHtml(title)}</div><div class="source-uri">${escapeHtml(meta)}</div></a>`;
+      return `<div class="source-card"><div class="source-title">${escapeHtml(title)}</div><div class="source-uri">${escapeHtml(meta)}</div></div>`;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = String(text ?? '');
+      return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+      return escapeHtml(text).replace(/"/g, '&quot;');
+    }
   </script>
 </body>
 </html>
