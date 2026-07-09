@@ -6,12 +6,11 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.vector_search import SearchResult, vector_search
+from app.db.vector_search import vector_search
 from app.embeddings.local_embeddings import embed
-from app.core.config import get_settings
-from app.llm.ollama_client import generate as generate_ollama
-from app.llm.openai_client import generate as generate_openai
-from app.llm.router import select_model
+from app.llm.service import generate_answer
+from app.rag.citations import build_unique_citations
+from app.rag.history import build_retrieval_question, decide_history_use, normalize_history
 from app.rag.prompt_builder import build_rag_prompt
 from app.core.logging import get_logger
 
@@ -40,14 +39,15 @@ async def query(
     1. Embed question
     2. Vector search (top_k)
     3. Build prompt
-    4. Send to Ollama
+    4. Generate with the selected LLM provider
     5. Return answer + citations
     """
     started = time.perf_counter()
-    history_count = len(history or [])
-    history_decision = _decide_history_use(question, history or [])
+    chat_history = normalize_history(history)
+    history_count = len(chat_history)
+    history_decision = decide_history_use(question, chat_history)
     use_history = history_decision == "use"
-    effective_history = history if use_history else []
+    effective_history = chat_history if use_history else []
     logger.info(
         "rag_query_started",
         tenant_id=str(tenant_id),
@@ -77,7 +77,7 @@ async def query(
 
     # 1. Embed
     phase_started = time.perf_counter()
-    retrieval_question = _build_retrieval_question(question, effective_history or [])
+    retrieval_question = build_retrieval_question(question, effective_history)
     query_embeddings = embed(retrieval_question)
     query_embedding = query_embeddings[0]
     logger.info(
@@ -113,30 +113,24 @@ async def query(
     )
 
     # 4. Select model and generate
-    provider = _normalize_llm_provider(llm_provider)
-    model = select_model(question) if provider == "ollama" else get_settings().openai_model
-    phase_started = time.perf_counter()
-    if provider == "openai":
-        answer = await generate_openai(prompt=prompt)
-    else:
-        answer = await generate_ollama(prompt=prompt, model=model)
+    generation = await generate_answer(prompt=prompt, question=question, llm_provider=llm_provider)
     logger.info(
         "rag_query_generation_complete",
         tenant_id=str(tenant_id),
-        llm_provider=provider,
-        model_used=model,
-        answer_chars=len(answer),
-        duration_ms=round((time.perf_counter() - phase_started) * 1000, 2),
+        llm_provider=generation.provider,
+        model_used=generation.model,
+        answer_chars=len(generation.answer),
+        duration_ms=generation.duration_ms,
     )
 
     # 5. Build citations
-    citations = _build_unique_citations(results)
+    citations = build_unique_citations(results)
 
     logger.info(
         "rag_query_complete",
         tenant_id=str(tenant_id),
-        llm_provider=provider,
-        model_used=model,
+        llm_provider=generation.provider,
+        model_used=generation.model,
         result_count=len(results),
         citation_count=len(citations),
         raw_citation_count=len(results),
@@ -146,139 +140,8 @@ async def query(
         duration_ms=round((time.perf_counter() - started) * 1000, 2),
     )
 
-    return RAGResponse(answer=answer, citations=citations, model_used=model)
-
-
-def _normalize_llm_provider(llm_provider: str) -> str:
-    provider = (llm_provider or "ollama").strip().lower()
-    if provider not in {"ollama", "openai"}:
-        logger.warning("unsupported_llm_provider", llm_provider=llm_provider)
-        return "ollama"
-    return provider
-
-
-def _decide_history_use(question: str, history: list[dict[str, str]]) -> str:
-    """Decide whether to use, ignore, or clarify previous chat context."""
-    if not history:
-        return "ignore"
-
-    q = " ".join(question.lower().strip().split())
-    if not q:
-        return "ignore"
-
-    explicit_references = (
-        "previous",
-        "earlier",
-        "last answer",
-        "your answer",
-        "your response",
-        "above",
-        "as mentioned",
-        "as you said",
-        "that answer",
-        "same",
-        "continue",
-        "carry on",
-        "follow up",
-        "follow-up",
-        "point ",
-        "section ",
-    )
-    if any(term in q for term in explicit_references):
-        return "use"
-
-    followup_starts = (
-        "what about",
-        "how about",
-        "and ",
-        "also ",
-        "then ",
-        "so ",
-        "but ",
-        "why ",
-        "expand",
-        "elaborate",
-        "rewrite",
-        "summarize",
-        "make it",
-        "make this",
-        "convert it",
-        "can you add",
-        "add more",
-    )
-    if any(q.startswith(term) for term in followup_starts):
-        return "use"
-
-    reference_words = {"it", "that", "this", "they", "them", "those", "these", "there"}
-    words = {word.strip(".,?!:;()[]{}\"'") for word in q.split()}
-    if len(q) <= 120 and words & reference_words:
-        return "clarify"
-
-    return "ignore"
-
-
-def _build_unique_citations(
-    results: list[SearchResult],
-    max_citations: int = 2,
-) -> list[dict[str, Optional[str]]]:
-    """Return a compact citation list without repeating the same file/source."""
-    citations = []
-    seen = set()
-
-    for r in results:
-        citation = {
-            "title": r.document_title,
-            "uri": r.document_uri,
-            "source_type": r.source_type,
-            "source_id": r.source_id,
-        }
-        key = _citation_key(citation)
-        if key in seen:
-            continue
-        seen.add(key)
-        citations.append(citation)
-        if len(citations) >= max_citations:
-            break
-
-    logger.info(
-        "rag_citations_compacted",
-        raw_citation_count=len(results),
-        citation_count=len(citations),
-        omitted_count=max(0, len(results) - len(citations)),
-        max_citations=max_citations,
-    )
-    return citations
-
-
-def _citation_key(citation: dict[str, Optional[str]]) -> str:
-    """Group repeated chunks from the same uploaded file or external URI."""
-    for value in (citation.get("title"), citation.get("uri"), citation.get("source_id")):
-        if value:
-            cleaned = value.rstrip("/").split("/")[-1].split("?")[0].strip().lower()
-            if cleaned:
-                return cleaned
-    return f"{citation.get('source_type') or ''}:{citation.get('source_id') or ''}".lower()
-
-
-def _build_retrieval_question(question: str, history: list[dict[str, str]]) -> str:
-    """Add recent turns to retrieval text so short follow-ups search the right concepts."""
-    recent_lines = []
-    for item in history[-6:]:
-        role = item.get("role", "").strip().lower()
-        if role not in {"user", "assistant"}:
-            continue
-        content = item.get("content", "").strip()
-        if not content:
-            continue
-        if len(content) > 700:
-            content = content[:700].rstrip() + "..."
-        recent_lines.append(f"{role}: {content}")
-
-    if not recent_lines:
-        return question
-
-    return (
-        f"Current follow-up question:\n{question}\n\n"
-        "Relevant recent conversation for resolving the follow-up:\n"
-        + "\n".join(recent_lines)
+    return RAGResponse(
+        answer=generation.answer,
+        citations=citations,
+        model_used=generation.model,
     )

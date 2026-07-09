@@ -1,5 +1,6 @@
 """RAG prompt construction."""
 from app.db.vector_search import SearchResult
+from app.rag.history import ChatTurn, format_history
 
 SYSTEM_INSTRUCTION = """You are a helpful assistant. Use the provided context as your source of truth.
 You may synthesize, summarize, draft, rewrite, structure, or create new deliverables such as proposals when the user asks for them, but factual claims must be grounded in the context.
@@ -14,7 +15,7 @@ For factual claims about the knowledge base or outside world, use the retrieved 
 def build_rag_prompt(
     context_results: list[SearchResult],
     question: str,
-    history: list[dict[str, str]] | None = None,
+    history: list[ChatTurn] | None = None,
 ) -> str:
     """Build prompt with system instruction, context, and question."""
     context_parts = []
@@ -23,7 +24,7 @@ def build_rag_prompt(
         context_parts.append(f"[Source {i} - {source}]\n{r.chunk_text}")
 
     context_block = "\n\n---\n\n".join(context_parts) if context_parts else "(No relevant context found.)"
-    history_block = _format_history(history or [])
+    history_block = format_history(history or [])
 
     return f"""{SYSTEM_INSTRUCTION}
 
@@ -46,24 +47,3 @@ Before producing a final answer, check whether the request depends on missing or
 ## Answer
 
 """
-
-
-def _format_history(history: list[dict[str, str]]) -> str:
-    """Render recent chat turns for follow-up resolution."""
-    if not history:
-        return "(No prior conversation.)"
-
-    lines = []
-    for item in history[-8:]:
-        role = item.get("role", "").strip().lower()
-        if role not in {"user", "assistant"}:
-            continue
-        content = item.get("content", "").strip()
-        if not content:
-            continue
-        if len(content) > 1200:
-            content = content[:1200].rstrip() + "..."
-        label = "User" if role == "user" else "Assistant"
-        lines.append(f"{label}: {content}")
-
-    return "\n\n".join(lines) if lines else "(No prior conversation.)"
