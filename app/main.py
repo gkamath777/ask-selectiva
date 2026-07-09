@@ -30,10 +30,15 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown."""
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
 
     # Startup
-    logger.info("application_starting", log_level=settings.log_level)
+    logger.info(
+        "application_starting",
+        environment=settings.app_environment,
+        log_level=settings.log_level,
+        log_format=settings.log_format,
+    )
     await init_db()
     logger.info("application_started")
 

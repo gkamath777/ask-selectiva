@@ -1,5 +1,6 @@
 """Ollama REST client for local LLM."""
 import json
+import time
 from typing import Any, AsyncGenerator
 
 import httpx
@@ -81,13 +82,82 @@ async def generate(
                 generate_payload,
             )
 
-        response = await client.post(chat_url, json=chat_payload)
+        started = time.perf_counter()
+        logger.info(
+            "ollama_generate_started",
+            model=model_name,
+            prompt_chars=len(prompt),
+            temperature=temp,
+            max_tokens=n_predict,
+            timeout_seconds=read_s,
+        )
+        endpoint = "/api/chat"
+        try:
+            response = await client.post(chat_url, json=chat_payload)
+        except httpx.TimeoutException as e:
+            logger.warning(
+                "ollama_generate_timeout",
+                model=model_name,
+                endpoint=endpoint,
+                error=str(e),
+                duration_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise
+        except httpx.HTTPError as e:
+            logger.warning(
+                "ollama_generate_http_error",
+                model=model_name,
+                endpoint=endpoint,
+                error=str(e),
+                duration_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise
         if response.status_code == 404:
             logger.info("ollama_trying_generate", model=model_name)
-            response = await client.post(generate_url, json=generate_payload)
+            endpoint = "/api/generate"
+            try:
+                response = await client.post(generate_url, json=generate_payload)
+            except httpx.TimeoutException as e:
+                logger.warning(
+                    "ollama_generate_timeout",
+                    model=model_name,
+                    endpoint=endpoint,
+                    error=str(e),
+                    duration_ms=round((time.perf_counter() - started) * 1000, 2),
+                )
+                raise
+            except httpx.HTTPError as e:
+                logger.warning(
+                    "ollama_generate_http_error",
+                    model=model_name,
+                    endpoint=endpoint,
+                    error=str(e),
+                    duration_ms=round((time.perf_counter() - started) * 1000, 2),
+                )
+                raise
         if response.status_code == 404:
             logger.info("ollama_trying_openai_compat", model=model_name, url=openai_url)
-            response = await client.post(openai_url, json=openai_payload)
+            endpoint = "/v1/chat/completions"
+            try:
+                response = await client.post(openai_url, json=openai_payload)
+            except httpx.TimeoutException as e:
+                logger.warning(
+                    "ollama_generate_timeout",
+                    model=model_name,
+                    endpoint=endpoint,
+                    error=str(e),
+                    duration_ms=round((time.perf_counter() - started) * 1000, 2),
+                )
+                raise
+            except httpx.HTTPError as e:
+                logger.warning(
+                    "ollama_generate_http_error",
+                    model=model_name,
+                    endpoint=endpoint,
+                    error=str(e),
+                    duration_ms=round((time.perf_counter() - started) * 1000, 2),
+                )
+                raise
 
         if response.status_code == 404:
             raise RuntimeError(
@@ -97,11 +167,30 @@ async def generate(
                 f"`curl {base_url}/api/tags`. If that fails, fix OLLAMA_BASE_URL."
             )
 
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "ollama_generate_bad_status",
+                model=model_name,
+                endpoint=endpoint,
+                status_code=response.status_code,
+                response_chars=len(response.text or ""),
+                duration_ms=round((time.perf_counter() - started) * 1000, 2),
+            )
+            raise
         data = response.json()
         text = _parse_ollama_response_body(data)
         if not text:
             logger.warning("ollama_empty_reply", model=model_name, keys=list(data.keys())[:10])
+        logger.info(
+            "ollama_generate_complete",
+            model=model_name,
+            endpoint=endpoint,
+            status_code=response.status_code,
+            response_chars=len(text),
+            duration_ms=round((time.perf_counter() - started) * 1000, 2),
+        )
         return text
 
 

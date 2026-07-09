@@ -420,6 +420,13 @@
               </div>
               <div class="query-controls">
                 <div class="field">
+                  <label for="llmProvider">LLM provider</label>
+                  <select id="llmProvider">
+                    <option value="ollama" selected>Ollama (local)</option>
+                    <option value="openai">OpenAI API</option>
+                  </select>
+                </div>
+                <div class="field">
                   <label for="topK">Retrieval depth</label>
                   <select id="topK">
                     <option value="3">Focused</option>
@@ -455,6 +462,7 @@
     const questionInput = document.getElementById('question');
     const tenantInput = document.getElementById('tenantId');
     const apiKeyInput = document.getElementById('apiKey');
+    const llmProviderInput = document.getElementById('llmProvider');
     const topKInput = document.getElementById('topK');
     const submitBtn = document.getElementById('submitBtn');
     const newChatBtn = document.getElementById('newChatBtn');
@@ -765,27 +773,6 @@
         .map(({ role, content }) => ({ role, content }));
     }
 
-    function buildQuestionForApi(question, history) {
-      if (!history.length) return question;
-      const recent = history.slice(-6).map(item => {
-        const label = item.role === 'assistant' ? 'Assistant' : 'User';
-        const content = String(item.content || '').trim();
-        const clipped = content.length > 900 ? content.slice(0, 900).trimEnd() + '...' : content;
-        return `${label}: ${clipped}`;
-      }).join('\n\n');
-      const contextualQuestion = [
-        'Use this recent conversation to understand the follow-up question.',
-        '',
-        recent,
-        '',
-        'Follow-up question:',
-        question,
-      ].join('\n');
-      return contextualQuestion.length > 5000
-        ? contextualQuestion.slice(contextualQuestion.length - 5000)
-        : contextualQuestion;
-    }
-
     function setDot(id, stateName) {
       const el = document.getElementById(id);
       el.className = 'dot' + (stateName ? ' ' + stateName : '');
@@ -924,7 +911,6 @@
       if (!tenantId) return showError('Tenant ID is required.');
 
       const history = getHistoryForRequest();
-      const questionForApi = buildQuestionForApi(question, history);
       chatMessages.push({ role: 'user', content: question });
       syncActiveChat();
       questionInput.value = '';
@@ -936,8 +922,9 @@
           headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             tenant_id: tenantId,
-            question: questionForApi,
+            question,
             top_k: Number(topKInput.value || 5),
+            llm_provider: llmProviderInput.value,
             history,
           }),
         });

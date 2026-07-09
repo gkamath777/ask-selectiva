@@ -3,10 +3,11 @@ from app.db.vector_search import SearchResult
 
 SYSTEM_INSTRUCTION = """You are a helpful assistant. Use the provided context as your source of truth.
 You may synthesize, summarize, draft, rewrite, structure, or create new deliverables such as proposals when the user asks for them, but factual claims must be grounded in the context.
-If required details are missing from the context, include a clearly labeled assumption, placeholder, or open question instead of refusing or inventing facts.
+If required details, reference numbers, IDs, dates, amounts, entities, or source data are missing or ambiguous, ask a concise follow-up question instead of assuming or inventing facts.
+If a useful partial answer is possible, provide only the grounded part and clearly ask for the missing detail needed to finish.
 If the context is not relevant to the request, say so clearly.
 Cite sources when possible.
-Use the conversation history to resolve follow-up references and to answer questions about prior turns.
+Use conversation history only when it is provided. When no history is provided, treat the question as standalone.
 For factual claims about the knowledge base or outside world, use the retrieved context as the source of truth."""
 
 
@@ -36,7 +37,9 @@ def build_rag_prompt(
 
 ## Current Question
 
-Resolve any pronouns, omitted subjects, or phrases like "that", "it", "the previous answer", and "point 2" using the conversation history before answering.
+If conversation history is present, use it only to resolve follow-up references such as "that", "it", "the previous answer", or "point 2".
+If conversation history is not present, answer the current question as a standalone request.
+Before producing a final answer, check whether the request depends on missing or ambiguous details such as reference numbers, IDs, dates, amounts, entities, or source data. If it does, ask a concise follow-up question and do not guess.
 
 {question}
 

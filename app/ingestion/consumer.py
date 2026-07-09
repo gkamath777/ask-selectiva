@@ -56,12 +56,13 @@ async def process_message(session_factory: async_sessionmaker[AsyncSession], msg
 async def run_consumer() -> None:
     """Run Kafka consumer loop."""
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
     logger.info(
         "consumer_booting",
         topic=KNOWLEDGE_INGEST_REQUESTS,
         kafka_bootstrap_servers=settings.kafka_bootstrap_servers,
         max_poll_interval_ms=settings.kafka_max_poll_interval_ms,
+        log_format=settings.log_format,
     )
 
     engine = create_async_engine(

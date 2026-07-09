@@ -29,6 +29,7 @@ class QueryRequest(BaseModel):
     tenant_id: uuid.UUID
     question: str = Field(..., min_length=1, max_length=5000)
     top_k: int = Field(5, ge=1, le=10)
+    llm_provider: str = Field("ollama", pattern="^(ollama|openai)$")
     history: list[ChatMessage] = Field(default_factory=list, max_length=12)
 
 
@@ -61,6 +62,7 @@ async def post_query(
         tenant_id=str(req.tenant_id),
         question_length=len(req.question),
         top_k=top_k,
+        llm_provider=req.llm_provider,
         history_count=len(req.history),
     )
     result: RAGResponse = await query(
@@ -69,11 +71,13 @@ async def post_query(
         question=req.question,
         top_k=top_k,
         history=[m.model_dump() for m in req.history],
+        llm_provider=req.llm_provider,
     )
     logger.info(
         "query_request_completed",
         tenant_id=str(req.tenant_id),
         model_used=result.model_used,
+        llm_provider=req.llm_provider,
         citation_count=len(result.citations),
         duration_ms=round((time.perf_counter() - start) * 1000, 2),
     )

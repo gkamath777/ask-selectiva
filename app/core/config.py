@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     # httpx read timeout for /api/chat (seconds). First model load + long RAG prompts often exceed 120s.
     ollama_request_timeout_seconds: float = 600.0
 
+    # OpenAI
+    openai_api_key: Optional[str] = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-5.5"
+    openai_temperature: float = 0.3
+    openai_max_output_tokens: int = 4096
+    openai_request_timeout_seconds: float = 600.0
+
     # Embeddings
     embedding_model: str = "all-MiniLM-L6-v2"
 
@@ -63,6 +71,7 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+    log_format: str = "console"
 
     @property
     def is_production(self) -> bool:
