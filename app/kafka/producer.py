@@ -21,6 +21,7 @@ async def get_producer() -> AIOKafkaProducer:
         _producer = AIOKafkaProducer(
             bootstrap_servers=_settings.kafka_bootstrap_servers.split(","),
             value_serializer=lambda v: v.encode("utf-8") if isinstance(v, str) else v,
+            max_request_size=_settings.kafka_max_message_bytes,
         )
         await _producer.start()
         logger.info("kafka_producer_started", servers=_settings.kafka_bootstrap_servers)

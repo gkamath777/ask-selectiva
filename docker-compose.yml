@@ -42,6 +42,8 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_MESSAGE_MAX_BYTES: "52428800"
+      KAFKA_REPLICA_FETCH_MAX_BYTES: "52428800"
 
   api:
     build: .
@@ -55,6 +57,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://selectiva:selectiva_dev@postgres:5432/ask_selectiva
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_MAX_MESSAGE_BYTES: "52428800"
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: llama3.1:8b
       OLLAMA_ESCALATION_MODEL: llama3.1:8b

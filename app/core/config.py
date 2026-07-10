@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Max ms between poll() iterations while processing a message (default broker-side ~5m).
     # Large PDFs + local embeddings exceed that → CommitFailedError / rebalance.
     kafka_max_poll_interval_ms: int = 1_800_000  # 30 minutes
+    kafka_max_message_bytes: int = 50 * 1024 * 1024
 
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
@@ -51,7 +52,7 @@ class Settings(BaseSettings):
     # When set, protected endpoints require X-API-Key: <value>.
     api_key: Optional[str] = None
     cors_allowed_origins: str = "*"
-    max_request_body_bytes: int = 10 * 1024 * 1024
+    max_request_body_bytes: int = 50 * 1024 * 1024
     max_webhook_body_bytes: int = 5 * 1024 * 1024
     max_query_top_k: int = 10
 

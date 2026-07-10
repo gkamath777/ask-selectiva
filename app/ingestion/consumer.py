@@ -92,6 +92,8 @@ async def run_consumer() -> None:
         auto_offset_reset="earliest",
         enable_auto_commit=False,
         max_poll_interval_ms=settings.kafka_max_poll_interval_ms,
+        fetch_max_bytes=settings.kafka_max_message_bytes,
+        max_partition_fetch_bytes=settings.kafka_max_message_bytes,
     )
     await consumer.start()
     logger.info("consumer_started", topic=KNOWLEDGE_INGEST_REQUESTS)
